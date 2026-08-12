@@ -1,0 +1,76 @@
+concept,row_order,section,bank,table_type_id,canonical_leaf_id,canonical_col_id,sign,member_ordinal,source_family,filter_by
+Gross loans,1,By Allowance,DBS,FS_CUSTOMER_LOANS,gross,,1,1,Performance_summary,period_end_date
+Gross loans,1,By Allowance,OCBC,FS_CUSTOMER_LOANS,gross_loans,,1,1,Media_release_and_financial_highlights,period_end_date
+Gross loans,1,By Allowance,UOB,FS_CUSTOMER_LOANS,gross_customer_loans,,1,1,Condensed_financial_statements,period_end_date
+Specific allowance,2,By Allowance,DBS,FS_CUSTOMER_LOANS,ecl_stage_3_sp,,1,1,Performance_summary,period_end_date
+Specific allowance,2,By Allowance,OCBC,FS_CUSTOMER_LOANS,allowances::impaired_loans,,1,1,Media_release_and_financial_highlights,period_end_date
+Specific allowance,2,By Allowance,UOB,FS_CUSTOMER_LOANS,specific_allowance,,1,1,Condensed_financial_statements,period_end_date
+General allowance,3,By Allowance,DBS,FS_CUSTOMER_LOANS,ecl_stage_1_and_2_gp,,1,1,Performance_summary,period_end_date
+General allowance,3,By Allowance,OCBC,FS_CUSTOMER_LOANS,allowances::non_impaired_loans,,1,1,Media_release_and_financial_highlights,period_end_date
+General allowance,3,By Allowance,UOB,FS_CUSTOMER_LOANS,general_allowance,,1,1,Condensed_financial_statements,period_end_date
+Net loans,4,By Allowance,DBS,FS_CUSTOMER_LOANS,net_total,,1,1,Performance_summary,period_end_date
+Net loans,4,By Allowance,OCBC,FS_CUSTOMER_LOANS,net_loans,,1,1,Media_release_and_financial_highlights,period_end_date
+Net loans,4,By Allowance,UOB,FS_CUSTOMER_LOANS,net_customer_loans,,1,1,Condensed_financial_statements,period_end_date
+Group Retail,5,By Business Unit,DBS,FS_CUSTOMER_LOANS,by_business_unit::consumer_banking_wealth_management,,1,1,Performance_summary,period_end_date
+Group Retail,5,By Business Unit,OCBC,FS_BALANCE_BY_SEGMENT,other_information::gross_non_bank_loans,SEG_RETAIL,1,1,Condensed_financial_statements,period_end_date
+Group Retail,5,By Business Unit,UOB,FS_PERF_BY_SEGMENT,selected_balance_sheet_items::other_information::gross_customer_loans,SEG_RETAIL,1,1,Condensed_financial_statements,period_end_date
+Group Wholesale Banking,6,By Business Unit,DBS,FS_CUSTOMER_LOANS,by_business_unit::institutional_banking,,1,1,Performance_summary,period_end_date
+Group Wholesale Banking,6,By Business Unit,OCBC,FS_BALANCE_BY_SEGMENT,other_information::gross_non_bank_loans,SEG_WHOLESALE,1,1,Condensed_financial_statements,period_end_date
+Group Wholesale Banking,6,By Business Unit,UOB,FS_PERF_BY_SEGMENT,selected_balance_sheet_items::other_information::gross_customer_loans,SEG_WHOLESALE,1,1,Condensed_financial_statements,period_end_date
+Others (BU),7,By Business Unit,DBS,FS_CUSTOMER_LOANS,by_business_unit::others,,1,1,Performance_summary,period_end_date
+Singapore,8,By Geography,DBS,FS_CUSTOMER_LOANS,by_geography::singapore,,1,1,Performance_summary,period_end_date
+Singapore,8,By Geography,OCBC,FS_CUSTOMER_LOANS,by_geography::singapore,,1,1,Media_release_and_financial_highlights,period_end_date
+Singapore,8,By Geography,UOB,FS_CUSTOMER_LOANS,by_geography::singapore,,1,1,Condensed_financial_statements,period_end_date
+Greater China,9,By Geography,OCBC,FS_CUSTOMER_LOANS,by_geography::greater_china,,1,1,Media_release_and_financial_highlights,period_end_date
+Greater China,9,By Geography,UOB,FS_CUSTOMER_LOANS,by_geography::greater_china,,1,1,Condensed_financial_statements,period_end_date
+Asia (geo),10,By Geography,DBS,FS_CUSTOMER_LOANS,by_geography::south_and_southeast_asia,,1,1,Performance_summary,period_end_date
+Rest of World,11,By Geography,DBS,FS_CUSTOMER_LOANS,by_geography::rest_of_the_world,,1,1,Performance_summary,period_end_date
+Rest of World,11,By Geography,OCBC,FS_CUSTOMER_LOANS,by_geography::rest_of_the_world,,1,1,Media_release_and_financial_highlights,period_end_date
+Rest of World,11,By Geography,UOB,FS_CUSTOMER_LOANS,by_geography::others,,1,1,Condensed_financial_statements,period_end_date
+Manufacturing,12,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::manufacturing,,1,1,Performance_summary,period_end_date
+Manufacturing,12,By Industry,OCBC,FS_CUSTOMER_LOANS,by_industry::manufacturing,,1,1,Media_release_and_financial_highlights,period_end_date
+Manufacturing,12,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::manufacturing,,1,1,Condensed_financial_statements,period_end_date
+Building and construction,13,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::building_and_construction,,1,1,Performance_summary,period_end_date
+Building and construction,13,By Industry,OCBC,FS_CUSTOMER_LOANS,by_industry::building_and_construction,,1,1,Media_release_and_financial_highlights,period_end_date
+Building and construction,13,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::building_and_construction,,1,1,Condensed_financial_statements,period_end_date
+Housing loans,14,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::housing_loans,,1,1,Performance_summary,period_end_date
+Housing loans,14,By Industry,OCBC,FS_CUSTOMER_LOANS,by_industry::housing_loans,,1,1,Media_release_and_financial_highlights,period_end_date
+Housing loans,14,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::housing_loans,,1,1,Condensed_financial_statements,period_end_date
+General commerce,15,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::general_commerce,,1,1,Performance_summary,period_end_date
+General commerce,15,By Industry,OCBC,FS_CUSTOMER_LOANS,by_industry::general_commerce,,1,1,Media_release_and_financial_highlights,period_end_date
+General commerce,15,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::general_commerce,,1,1,Condensed_financial_statements,period_end_date
+"Transportation, storage & communications",16,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::transportation_storage_and_communications,,1,1,Performance_summary,period_end_date
+"Transportation, storage & communications",16,By Industry,OCBC,FS_CUSTOMER_LOANS,by_industry::transport_storage_and_communication,,1,1,Media_release_and_financial_highlights,period_end_date
+"Transportation, storage & communications",16,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::transport_storage_and_communication,,1,1,Condensed_financial_statements,period_end_date
+"Financial institutions, investment & holding companies",17,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::financial_institutions_investment_and_holding_companies,,1,1,Performance_summary,period_end_date
+"Financial institutions, investment & holding companies",17,By Industry,OCBC,FS_CUSTOMER_LOANS,by_industry::financial_institutions_investment_and_holding_companies,,1,1,Media_release_and_financial_highlights,period_end_date
+"Financial institutions, investment & holding companies",17,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::financial_institutions_investment_and_holding_companies,,1,1,Condensed_financial_statements,period_end_date
+Professionals & private individuals,18,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::professionals_and_private_individuals_excluding_housing_loans,,1,1,Performance_summary,period_end_date
+Professionals & private individuals,18,By Industry,OCBC,FS_CUSTOMER_LOANS,by_industry::professionals_and_individuals,,1,1,Media_release_and_financial_highlights,period_end_date
+Professionals & private individuals,18,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::professionals_and_private_individuals,,1,1,Condensed_financial_statements,period_end_date
+Others (Industry),19,By Industry,DBS,FS_CUSTOMER_LOANS,by_industry::others,,1,1,Performance_summary,period_end_date
+Others (Industry),19,By Industry,UOB,FS_CUSTOMER_LOANS,by_industry::others,,1,1,Condensed_financial_statements,period_end_date
+Singapore Dollar,20,By Currency,DBS,FS_CUSTOMER_LOANS,by_currency::singapore_dollar,,1,1,Performance_summary,period_end_date
+Singapore Dollar,20,By Currency,OCBC,FS_CUSTOMER_LOANS,by_currency::singapore_dollar,,1,1,Media_release_and_financial_highlights,period_end_date
+Singapore Dollar,20,By Currency,UOB,FS_CUSTOMER_LOANS,by_currency::singapore_dollar,,1,1,Condensed_financial_statements,period_end_date
+US Dollar,21,By Currency,DBS,FS_CUSTOMER_LOANS,by_currency::us_dollar,,1,1,Performance_summary,period_end_date
+US Dollar,21,By Currency,OCBC,FS_CUSTOMER_LOANS,by_currency::united_states_dollar,,1,1,Media_release_and_financial_highlights,period_end_date
+US Dollar,21,By Currency,UOB,FS_CUSTOMER_LOANS,by_currency::us_dollar,,1,1,Condensed_financial_statements,period_end_date
+Malaysian Ringgit,23,By Currency,OCBC,FS_CUSTOMER_LOANS,by_currency::malaysian_ringgit,,1,1,Media_release_and_financial_highlights,period_end_date
+Malaysian Ringgit,23,By Currency,UOB,FS_CUSTOMER_LOANS,by_currency::malaysian_ringgit,,1,1,Condensed_financial_statements,period_end_date
+Thai Baht,24,By Currency,UOB,FS_CUSTOMER_LOANS,by_currency::thai_baht,,1,1,Condensed_financial_statements,period_end_date
+Indonesian Rupiah,25,By Currency,OCBC,FS_CUSTOMER_LOANS,by_currency::indonesian_rupiah,,1,1,Media_release_and_financial_highlights,period_end_date
+Indonesian Rupiah,25,By Currency,UOB,FS_CUSTOMER_LOANS,by_currency::indonesian_rupiah,,1,1,Condensed_financial_statements,period_end_date
+Chinese Renminbi,26,By Currency,DBS,FS_CUSTOMER_LOANS,by_currency::chinese_yuan,,1,1,Performance_summary,period_end_date
+Chinese Renminbi,26,By Currency,OCBC,FS_CUSTOMER_LOANS,by_currency::chinese_renminbi,,1,1,Media_release_and_financial_highlights,period_end_date
+Hong Kong Dollar,27,By Currency,DBS,FS_CUSTOMER_LOANS,by_currency::hong_kong_dollar,,1,1,Performance_summary,period_end_date
+Hong Kong Dollar,27,By Currency,OCBC,FS_CUSTOMER_LOANS,by_currency::hong_kong_dollar,,1,1,Media_release_and_financial_highlights,period_end_date
+Taiwan Dollar,28,By Currency,DBS,FS_CUSTOMER_LOANS,by_currency::taiwan_dollar,,1,1,Performance_summary,period_end_date
+Others (Currency),29,By Currency,DBS,FS_CUSTOMER_LOANS,by_currency::others,,1,1,Performance_summary,period_end_date
+Others (Currency),29,By Currency,OCBC,FS_CUSTOMER_LOANS,by_currency::others,,1,1,Media_release_and_financial_highlights,period_end_date
+Others (Currency),29,By Currency,UOB,FS_CUSTOMER_LOANS,by_currency::others,,1,1,Condensed_financial_statements,period_end_date
+Within 1 year,30,By Maturity,OCBC,FS_CUSTOMER_LOANS,by_maturity::within_1_year,,1,1,Media_release_and_financial_highlights,period_end_date
+Within 1 year,30,By Maturity,UOB,FS_CUSTOMER_LOANS,by_maturity::within_1_year,,1,1,Condensed_financial_statements,period_end_date
+1 to 3 years,31,By Maturity,OCBC,FS_CUSTOMER_LOANS,by_maturity::1_to_3_years,,1,1,Media_release_and_financial_highlights,period_end_date
+1 to 3 years,31,By Maturity,UOB,FS_CUSTOMER_LOANS,by_maturity::over_1_year_but_within_3_years,,1,1,Condensed_financial_statements,period_end_date
+Over 3 years,32,By Maturity,OCBC,FS_CUSTOMER_LOANS,by_maturity::over_3_years,,1,1,Media_release_and_financial_highlights,period_end_date

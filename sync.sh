@@ -22,8 +22,15 @@ mkdir -p "$DST/.streamlit" "$DST/db" "$DST/data/dashboards"
 cp "$SRC/findociq/app/findociq_app.py"       "$DST/streamlit_app.py"
 cp "$SRC/.streamlit/config.toml"             "$DST/.streamlit/"
 cp "$SRC/findociq/db/compiled_v2.db"         "$DST/db/"
-cp "$SRC/findociq/data/derived/dashboards/highlights_dashboard_anchors.csv" \
-   "$SRC/findociq/data/derived/dashboards/highlights_formulaanchors.csv" \
+# EVERY anchor pair, not the two highlights files by name. The app globs
+# `*_anchors.csv` / `*_formulaanchors.csv` and merges whatever it finds, so a new
+# dashboard is added by DROPPING A CSV PAIR IN — naming the files here meant the
+# next one (breakdown_of_gross_nb_loans_*) would load upstream and be silently
+# absent from the deploy. Note `*_anchors.csv` does not match `*_formulaanchors.csv`
+# (the char before 'anchors' is 'a', not '_'), so neither is copied twice.
+rm -f "$DST"/data/dashboards/*.csv
+cp "$SRC"/findociq/data/derived/dashboards/*_anchors.csv \
+   "$SRC"/findociq/data/derived/dashboards/*_formulaanchors.csv \
                                              "$DST/data/dashboards/"
 
 # NOT copied, deliberately:
