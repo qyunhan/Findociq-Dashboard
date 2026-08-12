@@ -1450,9 +1450,15 @@ if __name__ == "__main__":
 
     # ------------------------------------------------------------ Dashboard
     if view == "Dashboard":
+        # SHAPE, not name. This radio used to offer 'Key Financial Highlights'
+        # beside 'Concept compare', which read as a dashboard NAME — and once
+        # the anchor-set picker below started listing 'Key Financial Highlights'
+        # too, the same words appeared twice on one screen meaning two different
+        # things. It has only ever chosen a LAYOUT: one grid per bank, or the
+        # banks side by side. Named for that, it composes with any anchor set.
         dash_mode = st.radio(
             "Dashboard view",
-            ["Key Financial Highlights", "Concept compare"],
+            ["Per bank", "Concept compare"],
             horizontal=True, key="dash_mode")
 
         # `fm` is for CONCEPT COMPARE ONLY. Key Financial Highlights no longer
@@ -1462,10 +1468,10 @@ if __name__ == "__main__":
         # view rendered as "fact_metric is empty or not present in this source"
         # and never ran at all.
         fm = run_opt(f"SELECT * FROM {TBL('v_fact_metric_serving')}")
-        if dash_mode == "Key Financial Highlights":
+        if dash_mode == "Per bank":
             st.caption(
-                "Headline figures across banks and periods, one table per "
-                "bank -- derived (formula-resolved) cells are marked ' ᵈ'.")
+                "One table per bank, across periods -- derived "
+                "(formula-resolved) cells are marked ' ᵈ'.")
 
             # ANCHOR PATH. The row list and every value now come from the
             # stamped DB via data/derived/dashboards/*.csv, keyed on
