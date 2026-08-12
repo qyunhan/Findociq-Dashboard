@@ -12,11 +12,11 @@ Net loans,4,By Allowance,DBS,FS_CUSTOMER_LOANS,net_total,,1,1,Performance_summar
 Net loans,4,By Allowance,OCBC,FS_CUSTOMER_LOANS,net_loans,,1,1,Media_release_and_financial_highlights,period_end_date
 Net loans,4,By Allowance,UOB,FS_CUSTOMER_LOANS,net_customer_loans,,1,1,Condensed_financial_statements,period_end_date
 Group Retail,5,By Business Unit,DBS,FS_CUSTOMER_LOANS,by_business_unit::consumer_banking_wealth_management,,1,1,Performance_summary,period_end_date
-Group Retail,5,By Business Unit,OCBC,FS_BALANCE_BY_SEGMENT,other_information::gross_non_bank_loans,SEG_RETAIL,1,1,Condensed_financial_statements,period_end_date
-Group Retail,5,By Business Unit,UOB,FS_PERF_BY_SEGMENT,selected_balance_sheet_items::other_information::gross_customer_loans,SEG_RETAIL,1,1,Condensed_financial_statements,period_end_date
+Group Retail,5,By Business Unit,OCBC,FS_BALANCE_BY_SEGMENT,other_information::gross_non_bank_loans,global_consumer_private_banking,1,1,Condensed_financial_statements,period_end_date
+Group Retail,5,By Business Unit,UOB,FS_PERF_BY_SEGMENT,selected_balance_sheet_items::other_information::gross_customer_loans,group_retail,1,1,Condensed_financial_statements,period_end_date
 Group Wholesale Banking,6,By Business Unit,DBS,FS_CUSTOMER_LOANS,by_business_unit::institutional_banking,,1,1,Performance_summary,period_end_date
-Group Wholesale Banking,6,By Business Unit,OCBC,FS_BALANCE_BY_SEGMENT,other_information::gross_non_bank_loans,SEG_WHOLESALE,1,1,Condensed_financial_statements,period_end_date
-Group Wholesale Banking,6,By Business Unit,UOB,FS_PERF_BY_SEGMENT,selected_balance_sheet_items::other_information::gross_customer_loans,SEG_WHOLESALE,1,1,Condensed_financial_statements,period_end_date
+Group Wholesale Banking,6,By Business Unit,OCBC,FS_BALANCE_BY_SEGMENT,other_information::gross_non_bank_loans,global_wholesale_banking,1,1,Condensed_financial_statements,period_end_date
+Group Wholesale Banking,6,By Business Unit,UOB,FS_PERF_BY_SEGMENT,selected_balance_sheet_items::other_information::gross_customer_loans,group_wholesale_banking,1,1,Condensed_financial_statements,period_end_date
 Others (BU),7,By Business Unit,DBS,FS_CUSTOMER_LOANS,by_business_unit::others,,1,1,Performance_summary,period_end_date
 Singapore,8,By Geography,DBS,FS_CUSTOMER_LOANS,by_geography::singapore,,1,1,Performance_summary,period_end_date
 Singapore,8,By Geography,OCBC,FS_CUSTOMER_LOANS,by_geography::singapore,,1,1,Media_release_and_financial_highlights,period_end_date
