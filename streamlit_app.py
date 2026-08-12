@@ -218,6 +218,21 @@ def fiscal_period_axis(rows) -> list:
     Pure. No DB, no `st`."""
     records = _as_records(rows)
     flows = [r for r in records if is_flow_span(_row_get(r, "period_span"))]
+    if not flows:
+        # STOCK-ONLY anchor set — the balance-sheet dashboards. The no-minting
+        # rule above exists so a stock cannot raise '30-Jun-26' NEXT TO the
+        # '1H26' flow column that closes on the same day, splitting one period
+        # across two columns. With no flow rows at all there is no column to
+        # duplicate and nothing to split: the stocks' own closes ARE the only
+        # period axis the set has. Without this the axis came back empty, every
+        # fact placed onto nothing, and a dashboard whose 304 facts all resolved
+        # rendered as a grid with no columns — measured on
+        # `breakdown_of_gross_nb_loans`, every member `as_at`.
+        #
+        # The labels are `period_label`'s date form ('30-Jun-26'), which is what
+        # a balance column should say, and `filter_by='period_end_date'` places
+        # each fact on the column closing on its own date.
+        flows = records
     by_label: dict = {}
     for r in flows:
         span = _clean_span(_row_get(r, "period_span"))
