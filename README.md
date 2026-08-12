@@ -2,7 +2,7 @@
 
 Deploy-only mirror of the FinDocIQ Streamlit app. Source of truth is
 [`qyunhan/FinDocIQ`](https://github.com/qyunhan/FinDocIQ); this repo carries the
-minimum set of files the app needs at runtime — 11 MB instead of ~220 MB — so
+minimum set of files the app needs at runtime — ~11 MB instead of ~220 MB — so
 Streamlit Community Cloud clones and boots quickly.
 
 ## Deploy on Streamlit Community Cloud
@@ -24,47 +24,54 @@ Streamlit Community Cloud clones and boots quickly.
     streamlit_app.py              the app (upstream findociq/app/findociq_app.py)
     requirements.txt              Cloud installs from the repo root
     .streamlit/config.toml        cobalt theme
-    db/compiled_v2.db             the data — 10.5 MB, 98.5% of this repo
+    db/compiled_v2.db             the data — 10.5 MB, ~98% of this repo
     data/dashboards/*.csv         anchors; Key Financial Highlights renders
                                   empty without them
-    pipeline/source_store.py      16.6 KB of support code, 0.16% of the repo —
-    pipeline/mapping/normalize.py and not optional, see below
-    pipeline/mapping/__init__.py
+    pipeline/mapping/normalize.py 12 KB — supplies normalize_row_label, which
+    pipeline/mapping/__init__.py  builds row identities in the Table Registry view
     sync.sh                       re-copy + re-patch from the source repo
 
-**Why three extra Python files?** They are not optional imports:
+Two Python files besides the app, 12 KB total. Everything else upstream — the
+pipeline, prompts, specs, experiments, 215 commits of a 31 MB ingest DB — is
+what the mirror exists to leave behind. The DB is the size, not the code.
 
-* `source_store.py` — `streamlit_app.py` does a bare `import source_store` in the
-  Ingest view, and Ingest is the **first** sidebar tab, so it runs on every cold
-  load. Without this file the app raises `ModuleNotFoundError` before rendering
-  anything.
-* `mapping/normalize.py` (+ the empty `__init__.py` that makes `mapping` a
-  package) — supplies `normalize_row_label`, which builds row identities in the
-  Table Registry view.
+## Patches against upstream
 
-Everything else upstream — the pipeline, prompts, specs, experiments, 215
-commits of a 31 MB ingest DB — is what the mirror exists to leave behind.
+`sync.sh` reapplies all of these and **aborts** if upstream edits a patched
+line, rather than half-applying:
 
-**Two patched lines.** Upstream sits at `findociq/app/findociq_app.py` and does
-`REPO = Path(__file__).resolve().parents[2]`; here the app is at the repo root,
-so `REPO`/`FINDOCIQ_DIR` collapse to `parent`, and `DASHBOARDS_DIR` drops the
-`derived/` level. `sync.sh` reapplies both and **aborts** if upstream ever edits
-those lines, rather than half-applying a patch.
+1. **Flattened layout.** Upstream sits at `findociq/app/findociq_app.py` and does
+   `REPO = Path(__file__).resolve().parents[2]`; here the app is at the repo
+   root, so `REPO`/`FINDOCIQ_DIR` collapse to `parent` and `DASHBOARDS_DIR`
+   drops the `derived/` level.
+2. **Nav reordered, Ingest removed** — `["Dashboard", "Database", "Table Registry"]`.
+3. **Ingest block truncated.** It was the final `else:` of the view dispatch and
+   ran to EOF. It shelled out to `findociq/pipeline/run_doc.py`, which needs
+   PaddleOCR + GCS + Gemini and does not ship here. Dropping it also removed the
+   only unguarded `import source_store` (so `source_store.py` is gone) and the
+   only caller of `_plain_xlsx_export` (so `openpyxl` is gone from requirements).
 
-## What does not work here (by design)
+## How the dashboard resolves a figure
 
-* **Ingest** — the button shells out to `findociq/pipeline/run_doc.py`, which is
-  not in this repo and needs PaddleOCR + GCS + Gemini regardless. It fails
-  without crashing the app.
-* **Original-PDF pane** — source PDFs are not committed anywhere, and the GCS
-  fallback needs credentials. Renders empty.
-* **Table Registry / Concept compare** — `compiled_v2.db` currently ships
-  without `table_catalog`, `bank_line_map`, `row_lineage` and
-  `v_fact_metric_serving`. Fix that in the source repo with
-  `build_compiled_v2.py --carry-from`, then re-sync.
+Key Financial Highlights goes **straight to the stamped DB via the anchor CSVs**,
+keyed on `(bank, table_type_id, canonical_leaf_id)` — the identity the loader
+stamps. One address per bank; a multi-leaf line is *declared* in the formula
+file, never chosen by a resolver tie-break.
 
-Working views: **Database** browser and **Dashboard → Key Financial Highlights**
-(14,624 anchor rows).
+`table_catalog`, `bank_line_map`, `row_lineage` and `v_fact_metric_serving` are
+**retired by design** — the canonical leaf label replaced them. They are not
+missing from `compiled_v2.db` and must not be carried back into it.
+
+Consequence: the **Table Registry** catalog / line-map panels and **Concept
+compare** are legacy readers of those retired tables and render empty. They are
+guarded (`run_opt`), so they fail quietly rather than erroring. Rewriting them
+onto the canonical-leaf path is open work upstream.
+
+Working views: **Dashboard → Key Financial Highlights** (14,624 anchor rows) and
+the **Database** browser.
+
+The original-PDF pane in the Database view stays empty on Cloud: source PDFs are
+not committed anywhere, and the GCS fallback needs credentials.
 
 ## Updating
 

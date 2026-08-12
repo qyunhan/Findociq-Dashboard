@@ -1,11 +1,10 @@
 # Streamlit Community Cloud reads this file at the repo root.
 #
-# Trimmed from findociq/app/requirements.txt in the source repo: matplotlib and
-# pyyaml were dropped after verifying (import-blocker run against
-# findociq_app.py) that nothing in this app touches them — they were pulled in
-# by slide_kit/spec.py, neither of which ships here.
+# Trimmed from findociq/app/requirements.txt upstream:
+#   matplotlib, pyyaml — verified unused by the app (import-blocker run)
+#   openpyxl          — its only caller, _plain_xlsx_export, lived in the
+#                       Ingest view, which this mirror drops
 streamlit==1.60.0
 pandas>=2.0.0
 altair>=5.0.0
-pypdfium2>=5.8.0   # lazy: original-PDF page render
-openpyxl>=3.1      # lazy: .xlsx download
+pypdfium2>=5.8.0   # lazy: original-PDF page render in the Database view
