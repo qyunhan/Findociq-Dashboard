@@ -228,6 +228,40 @@ def fiscal_period_axis(rows) -> list:
             for lb in period_axis_order(flows) if lb in by_label]
 
 
+def period_column_headers(axis) -> dict:
+    """{fiscal label -> display header carrying the column's EXACT close date},
+    e.g. '1H26' -> '1H26 · 30-Jun-26'.
+
+    WHY the date belongs in the header at all: a balance-sheet anchor is a
+    STOCK. It is placed onto this axis by `filter_by='period_end_date'` (spec
+    §4.5) — every column closing on the fact's own end date — so the number
+    printed under '1H26' is the balance AS AT that column's close, not an
+    average or a flow over the window. The fiscal label alone never says which
+    date that is, and for loans and total assets that date IS the figure's
+    meaning.
+
+    Applied to the DISPLAY frame only. `period_order` and every grid key stay
+    the bare fiscal label, so placement, density pruning and the item/period
+    lookup are untouched — this renames columns at the last moment before
+    rendering and nothing downstream reads a header string.
+
+    A column whose end date is missing or unparseable keeps its bare label
+    rather than rendering a half-empty header.
+
+    Pure. No DB, no `st`."""
+    out: dict = {}
+    for entry in axis or []:
+        label, end_date = entry[0], entry[1]
+        try:
+            ts = pd.Timestamp(end_date)
+        except (TypeError, ValueError):
+            continue
+        if pd.isna(ts) or not label:
+            continue
+        out[label] = f"{label} · {ts.strftime('%d-%b-%y')}"
+    return out
+
+
 def target_period_labels(period, period_span, filter_by, axis) -> list:
     """Which fiscal columns one fact lands in, per spec §4.5.
 
@@ -1563,6 +1597,14 @@ if __name__ == "__main__":
                         grid_df = highlights_grid_frame(bank_rows, items, bank_cols)
                         header_flags = grid_df["_section_header"]
                         display_df = grid_df.drop(columns="_section_header")
+                        # EXACT CLOSE DATE in the header. The balance-sheet rows
+                        # below are stocks placed by `filter_by='period_end_date'`,
+                        # so their figure is the balance as at this column's close
+                        # — the fiscal label alone does not say which date that is.
+                        # Renamed on the display frame ONLY; bank_cols and every
+                        # grid key remain the bare label.
+                        display_df = display_df.rename(
+                            columns=period_column_headers(fiscal_axis))
 
                         st.dataframe(
                             display_df.style.apply(
