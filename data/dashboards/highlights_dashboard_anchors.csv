@@ -1,0 +1,75 @@
+concept,row_order,section,bank,table_type_id,canonical_leaf_id,sign,source_family,filter_by
+Net fee and commission income,2,Income statement ($m),DBS,FS_INCOME_SELECTED,commercial_book_total_income::net_fee_and_commission_income,1,performance_summary,
+Total income,4,Income statement ($m),DBS,FS_INCOME_SELECTED,total_income,1,performance_summary,
+Operating expenses,5,Income statement ($m),DBS,FS_INCOME_SELECTED,expenses,1,performance_summary,
+Operating profit,6,Income statement ($m),DBS,FS_INCOME_SELECTED,profit_before_allowances_and_amortisation,1,performance_summary,
+Amortisation of intangible assets,7,Income statement ($m),DBS,FS_INCOME_SELECTED,amortisation_of_intangible_assets,1,performance_summary,
+Allowances for credit and other losses,8,Income statement ($m),DBS,FS_INCOME_SELECTED,allowances_for_credit_and_other_losses,1,performance_summary,
+Share of profits/losses of associates and JVs,9,Income statement ($m),DBS,FS_INCOME_SELECTED,share_of_profits_losses_of_associates_and_jvs,1,performance_summary,
+Profit before tax,10,Income statement ($m),DBS,FS_INCOME_SELECTED,profit_before_tax,1,performance_summary,
+Net profit,11,Income statement ($m),DBS,FS_INCOME_SELECTED,net_profit,1,performance_summary,
+Gross Customer Loans,12,Balance sheet ($m),DBS,FS_BALANCE_SELECTED,customer_loans,1,performance_summary,period_end_date
+Customer deposits,13,Balance sheet ($m),DBS,FS_BALANCE_SELECTED,customer_deposits,1,performance_summary,period_end_date
+Total assets,14,Balance sheet ($m),DBS,FS_BALANCE_SELECTED,total_assets,1,performance_summary,period_end_date
+Total liabilities,15,Balance sheet ($m),DBS,FS_BALANCE_SELECTED,total_liabilities,1,performance_summary,period_end_date
+Total equity,16,Balance sheet ($m),DBS,FS_BALANCE_CONSOLIDATED,total_equity,1,performance_summary,period_end_date
+Shareholders' equity,17,Balance sheet ($m),DBS,FS_BALANCE_SELECTED,shareholders_funds,1,performance_summary,period_end_date
+Net interest margin,18,Key financial ratios (%),DBS,FS_RATIOS_KEY,net_interest_margin_group,1,performance_summary,
+Cost/income ratio,19,Key financial ratios (%),DBS,FS_RATIOS_KEY,cost_income_ratio,1,performance_summary,
+Return on assets,20,Key financial ratios (%),DBS,FS_RATIOS_KEY,return_on_assets,1,performance_summary,
+Return on equity,21,Key financial ratios (%),DBS,FS_RATIOS_KEY,return_on_equity,1,performance_summary,
+NPL ratio,22,Key financial ratios (%),DBS,FS_RATIOS_KEY,npl_ratio,1,performance_summary,
+Common Equity Tier 1,23,Key financial ratios (%),DBS,FS_RATIOS_KEY,common_equity_tier_1_cet_1_ratio,1,performance_summary,
+- Basic,24,Per share data ($),DBS,FS_PER_SHARE,reported_earnings::basic,1,performance_summary,
+- Diluted,25,Per share data ($),DBS,FS_PER_SHARE,reported_earnings::diluted,1,performance_summary,
+Net book value (NAV per ordinary share),26,Per share data ($),DBS,FS_PER_SHARE,reported_earnings::net_book_value,1,performance_summary,
+Net interest income,1,Income statement ($m),UOB,FS_INCOME_SELECTED,net_interest_income,1,Condensed_financial_statements,
+Net fee and commission income,2,Income statement ($m),UOB,FS_INCOME_SELECTED,net_fee_and_commission_income,1,Condensed_financial_statements,
+Other non-interest income,3,Income statement ($m),UOB,FS_INCOME_SELECTED,other_non_interest_income,1,Condensed_financial_statements,
+Total income,4,Income statement ($m),UOB,FS_INCOME_SELECTED,total_income,1,Condensed_financial_statements,
+Operating expenses,5,Income statement ($m),UOB,FS_INCOME_SELECTED,operating_expenses,1,Condensed_financial_statements,
+Operating profit,6,Income statement ($m),UOB,FS_INCOME_SELECTED,operating_profit,1,Condensed_financial_statements,
+Amortisation of intangible assets,7,Income statement ($m),UOB,FS_INCOME_SELECTED,amortisation_of_intangible_assets,1,Condensed_financial_statements,
+Allowances for credit and other losses,8,Income statement ($m),UOB,FS_INCOME_SELECTED,allowance_for_credit_and_other_losses,1,Condensed_financial_statements,
+Share of profits/losses of associates and JVs,9,Income statement ($m),UOB,FS_INCOME_SELECTED,share_of_profit_of_associates_and_joint_ventures,1,Condensed_financial_statements,
+Profit before tax,10,Income statement ($m),UOB,FS_INCOME_SELECTED,net_profit_before_tax,1,Condensed_financial_statements,
+Net profit,11,Income statement ($m),UOB,FS_INCOME_SELECTED,net_profit,1,Condensed_financial_statements,
+Gross Customer Loans,12,Balance sheet ($m),UOB,FS_BALANCE_SELECTED,gross_customer_loans,1,Condensed_financial_statements,period_end_date
+Customer deposits,13,Balance sheet ($m),UOB,FS_BALANCE_SELECTED,customer_deposits,1,Condensed_financial_statements,period_end_date
+Total assets,14,Balance sheet ($m),UOB,FS_BALANCE_SELECTED,total_assets,1,Condensed_financial_statements,period_end_date
+Total liabilities,15,Balance sheet ($m),UOB,FS_BALANCE_CONSOLIDATED,total_liabilities,1,Condensed_financial_statements,period_end_date
+Total equity,16,Balance sheet ($m),UOB,FS_BALANCE_CONSOLIDATED,total_equity,1,Condensed_financial_statements,period_end_date
+Shareholders' equity,17,Balance sheet ($m),UOB,FS_BALANCE_SELECTED,shareholders_equity,1,Condensed_financial_statements,period_end_date
+Net interest margin,18,Key financial ratios (%),UOB,FS_RATIOS_KEY,net_interest_margin,1,Condensed_financial_statements,
+Cost/income ratio,19,Key financial ratios (%),UOB,FS_RATIOS_KEY,cost_income_ratio,1,Condensed_financial_statements,
+Return on assets,20,Key financial ratios (%),UOB,FS_RATIOS_KEY,return_on_average_total_assets,1,Condensed_financial_statements,
+Return on equity,21,Key financial ratios (%),UOB,FS_RATIOS_KEY,return_on_average_ordinary_shareholders_equity,1,Condensed_financial_statements,
+NPL ratio,22,Key financial ratios (%),UOB,FS_RATIOS_KEY,npl_ratio,1,Condensed_financial_statements,
+Common Equity Tier 1,23,Key financial ratios (%),UOB,FS_RATIOS_KEY,capital_adequacy_ratios::common_equity_tier_1,1,Condensed_financial_statements,
+- Basic,24,Per share data ($),UOB,FS_RATIOS_KEY,earnings_per_ordinary_share::basic,1,Condensed_financial_statements,
+- Diluted,25,Per share data ($),UOB,FS_RATIOS_KEY,earnings_per_ordinary_share::diluted,1,Condensed_financial_statements,
+Net book value (NAV per ordinary share),26,Per share data ($),UOB,FS_RATIOS_KEY,net_asset_value_per_ordinary_share,1,Condensed_financial_statements,
+Net interest income,1,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,net_interest_income,1,Condensed_financial_statements,
+Net fee and commission income,2,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,fees_and_commissions_net,1,Condensed_financial_statements,
+Total income,4,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,total_income,1,Condensed_financial_statements,
+Operating expenses,5,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,total_operating_expenses,1,Condensed_financial_statements,
+Operating profit,6,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,operating_profit_before_allowances_and_amortisation,1,Condensed_financial_statements,
+Amortisation of intangible assets,7,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,amortisation_of_intangible_assets,1,Condensed_financial_statements,
+Allowances for credit and other losses,8,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,allowances_for_loans_and_other_assets,1,Condensed_financial_statements,
+Share of profits/losses of associates and JVs,9,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,share_of_results_of_associates_net_of_tax,1,Condensed_financial_statements,
+Profit before tax,10,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,profit_before_income_tax,1,Condensed_financial_statements,
+Net profit,11,Income statement ($m),OCBC,FS_INCOME_CONSOLIDATED,profit_for_the_period_year,1,Condensed_financial_statements,
+Gross Customer Loans,12,Balance sheet ($m),OCBC,FS_BALANCE_CONSOLIDATED,loans_to_customers,1,Condensed_financial_statements,period_end_date
+Customer deposits,13,Balance sheet ($m),OCBC,FS_BALANCE_CONSOLIDATED,deposits_of_non_bank_customers,1,Condensed_financial_statements,period_end_date
+Total assets,14,Balance sheet ($m),OCBC,FS_BALANCE_CONSOLIDATED,total_assets,1,Condensed_financial_statements,period_end_date
+Total liabilities,15,Balance sheet ($m),OCBC,FS_BALANCE_CONSOLIDATED,total_liabilities,1,Condensed_financial_statements,period_end_date
+Total equity,16,Balance sheet ($m),OCBC,FS_BALANCE_CONSOLIDATED,total_equity,1,Condensed_financial_statements,period_end_date
+Net interest margin,18,Key financial ratios (%),OCBC,FS_RATIOS_KEY,revenue_mix_efficiency_ratios::net_interest_margin,1,Media_release_and_financial_highlights,
+Cost/income ratio,19,Key financial ratios (%),OCBC,FS_RATIOS_KEY,revenue_mix_efficiency_ratios::cost_to_income,1,Media_release_and_financial_highlights,
+Return on assets,20,Key financial ratios (%),OCBC,FS_RATIOS_KEY,performance_ratios::return_on_assets,1,Media_release_and_financial_highlights,
+Return on equity,21,Key financial ratios (%),OCBC,FS_RATIOS_KEY,performance_ratios::return_on_equity,1,Media_release_and_financial_highlights,
+NPL ratio,22,Key financial ratios (%),OCBC,FS_RATIOS_KEY,revenue_mix_efficiency_ratios::npl_ratio,1,Media_release_and_financial_highlights,
+Common Equity Tier 1,23,Key financial ratios (%),OCBC,FS_RATIOS_KEY,capital_adequacy_ratios::common_equity_tier_1,1,Media_release_and_financial_highlights,
+- Basic,24,Per share data ($),OCBC,FS_INCOME_CONSOLIDATED,earnings_per_share::basic,1,Condensed_financial_statements,
+- Diluted,25,Per share data ($),OCBC,FS_INCOME_CONSOLIDATED,earnings_per_share::diluted,1,Condensed_financial_statements,
+Net book value (NAV per ordinary share),26,Per share data ($),OCBC,FS_BALANCE_CONSOLIDATED,net_asset_value_per_ordinary_share,1,Condensed_financial_statements,period_end_date
