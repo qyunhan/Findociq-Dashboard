@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Re-copy the deploy file set from the FinDocIQ source repo into this mirror,
-# then reapply the patches the flattened, Ingest-free layout needs.
+# then reapply the patches this trimmed, two-view layout needs.
 #
 #   ./sync.sh [path-to-FinDocIQ]      (default: /home/user/FinDocIQ)
 #
-# This list IS the contract. If findociq_app.py grows a new import or reads a
-# new data file, add it here — otherwise the mirror boots on the workstation
-# (where the full source tree is on sys.path) and dies on Streamlit Cloud.
+# This script IS the contract. Never hand-edit streamlit_app.py — change
+# findociq/app/findociq_app.py upstream and re-run this. If the app grows a new
+# import or reads a new data file, add it here, or the mirror boots on the
+# workstation (where the full source tree is on sys.path) and dies on Cloud.
 set -euo pipefail
 
 SRC="${1:-/home/user/FinDocIQ}"
@@ -16,7 +17,7 @@ DST="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     echo "not a FinDocIQ checkout: $SRC" >&2; exit 1
 }
 
-mkdir -p "$DST/.streamlit" "$DST/db" "$DST/data/dashboards" "$DST/pipeline/mapping"
+mkdir -p "$DST/.streamlit" "$DST/db" "$DST/data/dashboards"
 
 cp "$SRC/findociq/app/findociq_app.py"       "$DST/streamlit_app.py"
 cp "$SRC/.streamlit/config.toml"             "$DST/.streamlit/"
@@ -24,65 +25,136 @@ cp "$SRC/findociq/db/compiled_v2.db"         "$DST/db/"
 cp "$SRC/findociq/data/derived/dashboards/highlights_dashboard_anchors.csv" \
    "$SRC/findociq/data/derived/dashboards/highlights_formulaanchors.csv" \
                                              "$DST/data/dashboards/"
-cp "$SRC/findociq/pipeline/mapping/__init__.py" \
-   "$SRC/findociq/pipeline/mapping/normalize.py" \
-                                             "$DST/pipeline/mapping/"
 
 # NOT copied, deliberately:
-#   requirements.txt   upstream's root file is a `-r findociq/app/...` pointer
-#                      that does not resolve here, and this copy drops
-#                      matplotlib/pyyaml/openpyxl (see that file's header)
-#   source_store.py    its only unguarded import lived in the Ingest view; the
-#                      one that survives (_pdf_local_path) is inside try/except
+#   requirements.txt      upstream's root file is a `-r findociq/app/...` pointer
+#                         that does not resolve here, and this copy drops
+#                         matplotlib/pyyaml/openpyxl (see that file's header)
+#   pipeline/*.py         source_store and mapping/normalize were only reachable
+#                         from the Ingest and Table Registry views, both dropped
+#                         below — so the mirror ships no Python but the app
 
 python3 - "$DST/streamlit_app.py" <<'PY'
-import sys, pathlib
+import ast, sys, pathlib
 
+# ---------------------------------------------------------------- 1. patches
 # (upstream text, mirror replacement). Exact-match — if upstream edits any of
 # these, sync ABORTS so a human reapplies it, rather than half-patching.
 PATCHES = [
-    # 1. flattened layout: the app sits at the repo root, not findociq/app/
+    # flattened layout: the app sits at the repo root, not findociq/app/
     ('REPO = Path(__file__).resolve().parents[2]           # repo root (findociq\'s parent)\n'
      'FINDOCIQ_DIR = REPO / "findociq"',
      '# DEPLOY-MIRROR PATCH (see README "Structure"): upstream lives at\n'
      '# findociq/app/findociq_app.py and walks up two levels; here the app sits at the\n'
-     '# repo root, so both constants collapse to that root. sync.sh reapplies this and\n'
-     '# fails loudly if upstream ever edits these lines.\n'
+     '# repo root, so both constants collapse to that root.\n'
      'REPO = Path(__file__).resolve().parent               # repo root\n'
      'FINDOCIQ_DIR = REPO'),
     ('DASHBOARDS_DIR = FINDOCIQ_DIR / "data" / "derived" / "dashboards"',
      'DASHBOARDS_DIR = FINDOCIQ_DIR / "data" / "dashboards"   '
      '# DEPLOY-MIRROR PATCH: was data/derived/dashboards'),
-    # 2. nav: Dashboard first, Ingest gone
+    # nav: two views only
     ('            "Navigate", ["Ingest", "Database", "Table Registry", "Dashboard"],',
-     '            # DEPLOY-MIRROR PATCH: Dashboard first (it is the view that works\n'
-     '            # here), and Ingest dropped entirely — its block is truncated below.\n'
-     '            "Navigate", ["Dashboard", "Database", "Table Registry"],'),
+     '            # DEPLOY-MIRROR PATCH: the two views that work here.\n'
+     '            "Navigate", ["Dashboard", "Database"],'),
 ]
 
-# 3. the Ingest view is the last `else:` of the view dispatch and runs to EOF,
-#    so removing it is a truncation at its banner comment.
-INGEST_BANNER = "    # ------------------------------------------------------------- Ingest"
-TRUNCATION_NOTE = """    # DEPLOY-MIRROR PATCH: the Ingest view ended here and ran to EOF. It is
-    # dropped in this mirror — it shells out to findociq/pipeline/run_doc.py,
-    # which needs PaddleOCR + GCS + Gemini and does not ship here. Removing it
-    # also removed the only unguarded `import source_store` and the only
-    # caller of _plain_xlsx_export (the sole openpyxl user).
+# --------------------------------------------------- 2. view-block truncation
+# Table Registry and Ingest are the last two branches of the view dispatch and
+# run to EOF, so dropping them is a truncation at the Table Registry banner.
+BANNER = "    # ------------------------------------------------------- Table Registry"
+NOTE = """    # DEPLOY-MIRROR PATCH: the Table Registry and Ingest views ended here and ran
+    # to EOF. Both are dropped in this mirror.
+    #
+    #   Table Registry -- its catalog / line-map panels read table_catalog and
+    #   bank_line_map, which are RETIRED BY DESIGN (the canonical leaf label
+    #   replaced them). A legacy reader with nothing left to show.
+    #
+    #   Ingest -- shelled out to findociq/pipeline/run_doc.py, which needs
+    #   PaddleOCR + GCS + Gemini and does not ship here.
+    #
+    # The helpers that served only those two views are pruned below, which is
+    # why this mirror needs no pipeline/ package at all.
 """
+
+# ------------------------------------------------------------- 3. dead prune
+# Top-level symbols reachable ONLY from the two dropped views. Derived by an
+# AST reachability fixpoint, then frozen here so a sync is reviewable rather
+# than surprising. Each must exist exactly once, and must be unreferenced after
+# its own definition is removed — both are asserted.
+DEAD = [
+    "BENCHMARK_LABEL", "BENCHMARK_PERIOD", "STAGES", "_doc_kind_of",
+    "_ordered_row_addresses", "_plain_xlsx_export", "doc_to_csv",
+    "line_item_benchmark_frame", "line_item_display_order",
+    "line_item_masterlist_frame", "stage_states", "table_masterlist_frame",
+]
 
 p = pathlib.Path(sys.argv[1])
 src = p.read_text()
+
 for old, new in PATCHES:
     if src.count(old) != 1:
         sys.exit(f"sync.sh: upstream changed a patched line — reapply by hand:\n{old}")
     src = src.replace(old, new)
 
 lines = src.splitlines(keepends=True)
-hits = [i for i, ln in enumerate(lines) if ln.rstrip("\n") == INGEST_BANNER]
+hits = [i for i, ln in enumerate(lines) if ln.rstrip("\n") == BANNER]
 if len(hits) != 1:
-    sys.exit("sync.sh: could not find exactly one Ingest banner — truncate by hand")
-p.write_text("".join(lines[:hits[0]]) + TRUNCATION_NOTE)
-print(f"patched; Ingest block truncated at upstream line {hits[0] + 1}")
+    sys.exit("sync.sh: could not find exactly one Table Registry banner — truncate by hand")
+upstream_line = hits[0] + 1
+src = "".join(lines[:hits[0]]) + NOTE
+
+def spans(source):
+    """Top-level {name: (start, end)} 1-indexed, comment block above included."""
+    tree, lines = ast.parse(source), source.splitlines()
+    out = {}
+    def add(name, node):
+        s = node.lineno
+        while s > 1 and lines[s - 2].lstrip().startswith("#"):
+            s -= 1                     # absorb the comment block above
+        out[name] = (s, node.end_lineno)
+    for n in tree.body:
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            add(n.name, n)
+        elif isinstance(n, ast.Assign):
+            for t in n.targets:
+                if isinstance(t, ast.Name) and t.id.isupper():
+                    add(t.id, n)
+    return out
+
+# Fixpoint, not one pass: these symbols reference each other (STAGES is
+# stage_states' default arg, _ordered_row_addresses is called by two others), so
+# a name only becomes removable once its dead callers are gone. Each round drops
+# whatever is now unreferenced; a round that drops nothing means the survivors
+# are genuinely reachable from live code, and we abort naming them.
+pending = list(DEAD)
+while pending:
+    table = spans(src)
+    missing = [n for n in pending if n not in table]
+    if missing:
+        sys.exit(f"sync.sh: no longer top-level symbols, review the DEAD list: {missing}")
+    tree = ast.parse(src)
+    refs = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            refs.setdefault(node.id, []).append(node.lineno)
+    removable = [n for n in pending
+                 if not [ln for ln in refs.get(n, [])
+                         if not (table[n][0] <= ln <= table[n][1])]]
+    if not removable:
+        sys.exit(f"sync.sh: REACHABLE from live code now, drop from DEAD: {pending}")
+    for name in removable:
+        s, e = spans(src)[name]
+        lines = src.splitlines(keepends=True)
+        src = "".join(lines[:s - 1] + lines[e:])
+    pending = [n for n in pending if n not in removable]
+
+while "\n\n\n\n" in src:
+    src = src.replace("\n\n\n\n", "\n\n\n")
+
+ast.parse(src)
+p.write_text(src)
+print(f"patched; views truncated at upstream line {upstream_line}; "
+      f"{len(DEAD)} dead symbols pruned")
 PY
 
 echo "synced from $SRC"
