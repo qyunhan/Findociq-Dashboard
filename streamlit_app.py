@@ -511,7 +511,30 @@ def is_base_slice(segment_key, geo_key) -> bool:
             and _is_base(geo_key, _BASE_GEO))
 
 
-def load_dashboard_anchors(bank: str, dashboards_dir=None):
+_HEADLINE_DASHBOARD = "highlights_dashboard"
+
+
+def available_dashboards(dashboards_dir=None) -> list:
+    """[(stem, display name)] for every anchor SET in the directory, in a stable
+    order with the headline set first.
+
+    A dashboard IS a CSV pair — `<stem>_anchors.csv` + `<stem>_formulaanchors.csv`
+    — so adding one is dropping a pair in, with no code change. Discovered from
+    the `_anchors.csv` file alone: a set may legitimately have no formula members.
+
+    `highlights_dashboard` sorts first because it is the headline view; the rest
+    follow alphabetically so the list does not reshuffle as pairs are added.
+
+    Pure — no `st`, no DB."""
+    d = Path(dashboards_dir or DASHBOARDS_DIR)
+    stems = [p.name[: -len("_anchors.csv")] for p in d.glob("*_anchors.csv")
+             if not p.name.endswith("_formulaanchors.csv")]
+    stems.sort(key=lambda s: (s != _HEADLINE_DASHBOARD, s))
+    return [(s, "Key Financial Highlights" if s == _HEADLINE_DASHBOARD
+             else s.replace("_", " ").capitalize()) for s in stems]
+
+
+def load_dashboard_anchors(bank: str, dashboards_dir=None, dashboard: str | None = None):
     """Read one bank's dashboard anchor CSVs -> (items, members).
 
     THE DASHBOARD'S ROW LIST IS NOW DATA, not a concept dictionary. Each anchor
@@ -550,14 +573,26 @@ def load_dashboard_anchors(bank: str, dashboards_dir=None):
     """
     d = Path(dashboards_dir or DASHBOARDS_DIR)
     order, members, sections = {}, {}, {}
-    # Glob every anchor file, not just `{bank}*` ones: the anchor set is now
-    # ONE cross-bank pair of CSVs (`highlights_dashboard_anchors.csv` +
-    # `highlights_formulaanchors.csv`), so a bank-prefixed pattern matched
-    # nothing and every bank silently rendered zero rows. Selection by bank is
-    # the `bank` COLUMN filter below and always was — the filename never had to
-    # carry it. Per-bank files still match, so both layouts work.
+    # ONE anchor SET is ONE dashboard, and sets are never merged.
+    #
+    # The glob used to take every `*_anchors.csv` in the directory at once,
+    # which was right while the directory held exactly one pair. The moment a
+    # second pair landed (`breakdown_of_gross_nb_loans_*`) that became a defect:
+    # `row_order` is per-FILE and both files start at 1, so sorting the union by
+    # it INTERLEAVES the two dashboards row by row — 'Gross loans', 'Net interest
+    # income', 'Specific allowance', 'Net fee and commission income'... And since
+    # `highlights_grid_frame` emits each section header at most once, the second
+    # dashboard's rows then scatter through the first one's sections with no
+    # header at all. Measured on the real files: 52 items, alternating from row 0.
+    #
+    # `dashboard` is the file stem before the suffix ('highlights_dashboard',
+    # 'breakdown_of_gross_nb_loans'); None keeps the whole-directory behaviour
+    # for callers that pre-date sets (tests, and any single-pair directory).
+    # Selection by BANK is still the `bank` COLUMN filter below — that never had
+    # to be in the filename, and per-bank files still match.
     for suffix in ("_anchors.csv", "_formulaanchors.csv"):
-        for path in sorted(d.glob(f"*{suffix}")):
+        pattern = f"{dashboard}{suffix}" if dashboard else f"*{suffix}"
+        for path in sorted(d.glob(pattern)):
             with path.open(newline="", encoding="utf-8-sig") as f:
                 for r in csv.DictReader(f):
                     if (r.get("bank") or "").strip() != bank:
@@ -1463,10 +1498,26 @@ if __name__ == "__main__":
             # collect the flow spans present; pass 2 rebuilds every frame
             # against the settled axis. Deriving the axis from the raw anchor
             # rows instead would count facts the anchors never address.
+            # WHICH dashboard — discovered from the folder every rerun, never
+            # declared in code. `available_dashboards()` globs the anchors dir,
+            # so dropping a `<stem>_anchors.csv` (+ optional
+            # `<stem>_formulaanchors.csv`) pair in adds a dashboard here with no
+            # edit; deleting the pair removes it. The picker only appears once
+            # there is more than one set, so a single-pair install looks exactly
+            # as it did before.
+            _dash_sets = available_dashboards()
+            if len(_dash_sets) > 1:
+                _by_name = {name: stem for stem, name in _dash_sets}
+                _picked = st.radio("Dashboard", list(_by_name),
+                                   horizontal=True, key="hl_set")
+                _dash_stem = _by_name[_picked]
+            else:
+                _dash_stem = _dash_sets[0][0] if _dash_sets else None
+
             items, probe = [], []
             per_bank = []
             for _b in banks_anchored:
-                _it, _mb = load_dashboard_anchors(_b)
+                _it, _mb = load_dashboard_anchors(_b, dashboard=_dash_stem)
                 seen = {i["label"] for i in items}
                 items += [i for i in _it if i["label"] not in seen]
                 _rows = [r for r in anchor_rows
