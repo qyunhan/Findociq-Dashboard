@@ -2,20 +2,59 @@
 # Re-copy the deploy file set from the FinDocIQ source repo into this mirror,
 # then reapply the patches this trimmed, two-view layout needs.
 #
-#   ./sync.sh [path-to-FinDocIQ]      (default: /home/user/FinDocIQ)
+#   ./sync.sh [path-to-FinDocIQ]      (default: $FINDOCIQ_SRC, else
+#                                      /home/user/FinDocIQ-v2)
 #
 # This script IS the contract. Never hand-edit streamlit_app.py — change
 # findociq/app/findociq_app.py upstream and re-run this. If the app grows a new
 # import or reads a new data file, add it here, or the mirror boots on the
 # workstation (where the full source tree is on sys.path) and dies on Cloud.
+#
+# THE DEFAULT USED TO BE /home/user/FinDocIQ, AND THAT PATH STILL EXISTS.
+# It is a second checkout of the same origin, and on 2026-08-14 it sat on the
+# diverged branch `mapping/masterlist-registry` — 8 commits behind main with 47
+# uncommitted files — while the source of truth had moved to
+# /home/user/FinDocIQ-v2. It passes the `findociq_app.py exists` check below, so
+# a bare `./sync.sh` would have generated the PUBLIC deploy from that tree and
+# said "synced" as if nothing were wrong. Hence the default change and the
+# provenance guards: this script publishes, so it must refuse to guess.
 set -euo pipefail
 
-SRC="${1:-/home/user/FinDocIQ}"
+SRC="${1:-${FINDOCIQ_SRC:-/home/user/FinDocIQ-v2}}"
 DST="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 [ -f "$SRC/findociq/app/findociq_app.py" ] || {
     echo "not a FinDocIQ checkout: $SRC" >&2; exit 1
 }
+SRC="$(cd "$SRC" && pwd)"
+
+# ------------------------------------------------------- provenance guards
+# What is about to be published, stated before anything is copied. Set
+# FINDOCIQ_SYNC_FORCE=1 to proceed anyway (it names which check it bypassed).
+SRC_BRANCH="$(git -C "$SRC" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+SRC_REV="$(git -C "$SRC" rev-parse --short HEAD 2>/dev/null || echo '?')"
+SRC_DIRTY="$(git -C "$SRC" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+echo "source: $SRC"
+echo "        $SRC_BRANCH @ $SRC_REV, $SRC_DIRTY uncommitted file(s)"
+
+_refuse() {
+    if [ "${FINDOCIQ_SYNC_FORCE:-0}" = "1" ]; then
+        echo "  WARNING (FINDOCIQ_SYNC_FORCE=1, proceeding): $1" >&2
+    else
+        echo "  REFUSING: $1" >&2
+        echo "  This generates the PUBLIC deploy. Fix the source tree, or set" >&2
+        echo "  FINDOCIQ_SYNC_FORCE=1 to override deliberately." >&2
+        exit 1
+    fi
+}
+
+git -C "$SRC" rev-parse --verify -q origin/main >/dev/null 2>&1 ||     git -C "$SRC" fetch -q origin main 2>/dev/null || true
+if git -C "$SRC" rev-parse --verify -q origin/main >/dev/null 2>&1; then
+    git -C "$SRC" merge-base --is-ancestor HEAD origin/main 2>/dev/null ||         _refuse "$SRC HEAD ($SRC_BRANCH @ $SRC_REV) is not on origin/main — \
+what is deployed must be pushed first."
+fi
+[ "$SRC_DIRTY" = "0" ] ||     _refuse "$SRC has $SRC_DIRTY uncommitted file(s) — the deploy would not \
+match any commit."
 
 mkdir -p "$DST/.streamlit" "$DST/db" "$DST/data/dashboards"
 
@@ -204,5 +243,5 @@ print(f"patched; views truncated at upstream line {upstream_line}; "
       f"{len(DEAD)} dead symbols pruned")
 PY
 
-echo "synced from $SRC"
+echo "synced from $SRC ($SRC_BRANCH @ $SRC_REV)"
 du -sh "$DST"
