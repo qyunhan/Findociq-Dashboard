@@ -46,9 +46,19 @@ DB = FINDOCIQ_DIR / "db" / "compiled_v2.db"
 #   *_anchors.csv        concept,row_order,bank,table_type_id,canonical_leaf_id,sign
 #   *_formulaanchors.csv  ... + member_ordinal   (concept = SUM of members x sign)
 DASHBOARDS_DIR = FINDOCIQ_DIR / "data" / "dashboards"   # DEPLOY-MIRROR PATCH: was data/derived/dashboards
+# The source-PDF tree the Database view's "Original document" panel reads.
+# A CONSTANT, not a path rebuilt inside the resolver, for the same reason
+# DASHBOARDS_DIR is one: the deploy mirror flattens the repo, and a hardcoded
+# 'findociq/data/sources' inside the function silently resolves to nothing
+# there — the panel would report every PDF unavailable with the files present.
+SOURCES_DIR = FINDOCIQ_DIR / "data" / "sources"
 SOURCE = os.environ.get("FINDOCIQ_DB_SOURCE", "sqlite").lower()
 PROJECT = os.environ.get("FINDOCIQ_BQ_PROJECT", "igc2026-team08-6311")
 
+# Reference period for the Table Registry tab's per-table line-item view --
+# "what does this table actually look like right now", not an accumulation
+# across every period ever ingested. document.doc_period for 4Q25 across all
+# 3 banks (confirmed: DBS/UOB/OCBC-both-doc_kinds all use this exact string).
 DATASET = os.environ.get("FINDOCIQ_BQ_DATASET", "findociq")
 
 
@@ -547,6 +557,11 @@ def available_dashboards(dashboards_dir=None) -> list:
     stems.sort(key=lambda s: (s != _HEADLINE_DASHBOARD, s))
     return [(s, "Key Financial Highlights" if s == _HEADLINE_DASHBOARD
              else s.replace("_", " ").capitalize()) for s in stems]
+
+
+_REGISTRY_COLS = ["dashboard", "bank", "section", "concept", "table_type_id",
+                  "canonical_leaf_id", "times_captured", "docs_captured",
+                  "latest_period"]
 
 
 def load_dashboard_anchors(bank: str, dashboards_dir=None, dashboard: str | None = None):
@@ -1288,6 +1303,37 @@ def table_view_labels(table_records):
     return options, by_label
 
 
+def select_clause(wanted, available, prefix="") -> str:
+    """A SELECT list that survives a schema which lacks some of the columns.
+
+    THE SERVING SCHEMA IS A MOVING TARGET, and the app must degrade per COLUMN
+    the way it already degrades per table (`run_opt`). Measured on the shipped
+    `compiled_v2.db`: `row_dim` has no `row_leaf_label_clean` and no
+    `concept_key`, and `cell_fact` has no `concept_key`/`geo_key`/`segment_key`
+    — all of them still selected by the Database view. Because those queries go
+    through `run()`, picking ANY table raised `no such column:
+    row_leaf_label_clean` and the whole view died on an exception. That is a
+    missing COLUMN, so `run_opt`'s table-level fallback could not have saved it,
+    and blanking the view would have hidden a schema drift worth seeing.
+
+    Emitting the absent ones as `NULL AS <name>` keeps the result's SHAPE fixed,
+    so every downstream consumer (`raw_table_frame`, the identity grids) sees
+    the column it expects and simply finds it empty. This is a general rule
+    about schema drift, not a compiled_v2 special case: restore the column and
+    it starts serving again with no code change, and a NEW column may be
+    selected before every DB carries it.
+
+    `prefix` is the table alias including its dot ('r.'); it is applied to real
+    columns only, never to a NULL literal's alias.
+
+    Pure/testable without Streamlit."""
+    parts = []
+    for name in wanted:
+        parts.append(f"{prefix}{name}" if name in set(available)
+                     else f"NULL AS {name}")
+    return ", ".join(parts)
+
+
 def source_key_of(source_file) -> str | None:
     """document.source_file (repo-relative local path, e.g.
     'findociq/data/sources/financial_statements/X.pdf') -> the canonical
@@ -1299,6 +1345,49 @@ def source_key_of(source_file) -> str | None:
     if len(parts) != 2 or not parts[1]:
         return None
     return parts[1]
+
+
+def resolve_source_pdf(source_file, repo, sources_dir=None) -> str | None:
+    """document.source_file -> an existing local PDF path, or None.
+
+    TWO CONVENTIONS, ONE CORPUS. `source_file` is written verbatim by whichever
+    ingest run produced the document, and the corpus demonstrably holds both a
+    FLAT key ('data/sources/financial_statements/X.pdf') and a FOLDERED one
+    ('data/sources/financial_statements/DBS/2025/4Q25/X.pdf') -- measured: 3 of
+    10 documents in compiled_v2.db record the foldered form, and 2 of those 3
+    have the identical PDF sitting flat in the repo. Resolving only the literal
+    recorded path left those documents showing 'Original PDF unavailable' with
+    the file present on disk.
+
+    So: try the recorded path, then fall back to the BASENAME anywhere under
+    data/sources/. The basename is the stable half of both conventions -- it is
+    what `source_store.key_for()` derives doc_id from -- and the search is over
+    the source tree only, so it can never reach outside the corpus. This is a
+    general rule about the two key conventions, not a per-document mapping: a
+    document filed under a folder layout we have never seen resolves by the same
+    path. Returns the FIRST match in sorted order so the result is deterministic
+    across filesystems (os.walk order is not).
+
+    `sources_dir` defaults to the upstream layout; the deploy mirror flattens
+    the tree, so it is passed in (SOURCES_DIR) rather than rebuilt here.
+
+    Pure/testable without Streamlit -- the GCS fallback stays in the caller,
+    since it needs credentials this function must not require."""
+    if not source_file:
+        return None
+    repo = Path(repo)
+    p = repo / str(source_file)
+    if p.exists():
+        return str(p)
+    name = Path(str(source_file)).name
+    if not name:
+        return None
+    sources = (Path(sources_dir) if sources_dir is not None
+               else repo / "findociq" / "data" / "sources")
+    if not sources.is_dir():
+        return None
+    hits = sorted(q for q in sources.rglob(name) if q.is_file())
+    return str(hits[0]) if hits else None
 
 
 # ============================================================================
@@ -1357,6 +1446,27 @@ if __name__ == "__main__":
     def _esc(v: str) -> str:
         return str(v).replace("'", "''")
 
+    @st.cache_data(ttl=600, show_spinner=False)
+    def _cols_of(table: str) -> set:
+        """The columns this serving DB actually has for `table`.
+
+        Cheap (one PRAGMA, cached with the same TTL as `run`) and the input to
+        every `select_clause` call. On BigQuery it returns the empty set, which
+        would blank every column, so the callers below only consult it on the
+        sqlite path — the bq serving dataset is generated from the full schema
+        and does not drift the way the shipped sqlite snapshots do."""
+        if SOURCE == "bq":
+            return set()
+        return {r[1] for r in
+                _backend().execute(f"PRAGMA table_info({table})")}
+
+    def _sel(table: str, wanted, prefix: str = "") -> str:
+        """`select_clause` against the live schema. On bq, pass everything
+        through unchanged (see `_cols_of`)."""
+        if SOURCE == "bq":
+            return ", ".join(f"{prefix}{c}" for c in wanted)
+        return select_clause(wanted, _cols_of(table), prefix)
+
     def _raw_frame(doc_id: str, table_id: str):
         """Original-shape reconstruction of one table (see
         raw_table_frame): PDF row/column order, indented row labels,
@@ -1367,8 +1477,10 @@ if __name__ == "__main__":
         cols_r = run(f"SELECT col_id, col_leaf_label "
                      f"FROM {TBL('col_dim')} {where}").to_dict("records")
         df = raw_table_frame(
-            run(f"SELECT row_id, row_hierarchy, row_leaf_label, "
-                f"row_leaf_label_clean "
+            # `row_leaf_label_clean` is ABSENT from compiled_v2.db's row_dim.
+            # Selected literally, this query raised and took the entire
+            # Database view down with it (see `select_clause`).
+            run(f"SELECT {_sel('row_dim', ['row_id', 'row_hierarchy', 'row_leaf_label', 'row_leaf_label_clean'])} "
                 f"FROM {TBL('row_dim')} {where}").to_dict("records"),
             cols_r,
             run(f"SELECT row_id, col_id, value_raw, value_num "
@@ -1380,13 +1492,19 @@ if __name__ == "__main__":
     # ----------------------------------------------- original-PDF rendering
     @st.cache_data(show_spinner=False)
     def _pdf_local_path(source_file: str) -> str | None:
-        """Resolve document.source_file to a local PDF path — the repo-relative
-        path if it exists, else materialize the canonical key from the GCS
-        source bucket. None when neither is available (e.g. pre-migration
-        docs whose PDF never reached the bucket)."""
-        p = REPO / str(source_file)
-        if p.exists():
-            return str(p)
+        """Resolve document.source_file to a local PDF path — the repo copy if
+        one exists under either key convention (see `resolve_source_pdf`), else
+        materialize the canonical key from the GCS source bucket. None when
+        neither is available (e.g. pre-migration docs whose PDF never reached
+        the bucket).
+
+        The local pass comes FIRST and now covers both conventions, which is
+        what makes this work on a credential-less deploy: the public Streamlit
+        app has no GCS access at all, so anything that falls through to
+        `source_store.materialize` there is simply unavailable."""
+        local = resolve_source_pdf(source_file, REPO, SOURCES_DIR)
+        if local is not None:
+            return local
         key = source_key_of(source_file)
         if key is None:
             return None
@@ -1627,7 +1745,7 @@ if __name__ == "__main__":
                     event = st.dataframe(
                         display_df.style.apply(
                             _section_row_styles(header_flags), axis=None),
-                        use_container_width=True,
+                        width="stretch",
                         on_select="rerun", selection_mode="single-row",
                         key="hl_compare_table")
 
@@ -1681,7 +1799,7 @@ if __name__ == "__main__":
                         st.dataframe(
                             display_df.style.apply(
                                 _section_row_styles(header_flags), axis=None),
-                            use_container_width=True)
+                            width="stretch")
 
                         derived_notes = [
                             {"Item": r["label"], "Period": r["period_label"],
@@ -1692,7 +1810,7 @@ if __name__ == "__main__":
                             if derived_notes:
                                 st.dataframe(
                                     pd.DataFrame(derived_notes),
-                                    use_container_width=True, hide_index=True)
+                                    width="stretch", hide_index=True)
                             else:
                                 st.caption(
                                     "No derived (formula-resolved) cells in "
@@ -1732,7 +1850,7 @@ if __name__ == "__main__":
                         .properties(height=400)
                         .interactive()
                     )
-                    st.altair_chart(chart, use_container_width=True)
+                    st.altair_chart(chart, width="stretch")
 
                 st.download_button(
                     "Download highlights (CSV)",
@@ -1818,7 +1936,7 @@ if __name__ == "__main__":
                     .properties(height=400)
                     .interactive()
                 )
-                st.altair_chart(chart, use_container_width=True)
+                st.altair_chart(chart, width="stretch")
 
                 st.markdown("**Compare table**")
                 wide = tidy.pivot_table(index="period_label", columns="bank",
@@ -1826,7 +1944,7 @@ if __name__ == "__main__":
                 wide = wide.reindex(period_order)
                 wide = wide[[b for b in _BANK_COLOR if b in wide.columns]
                             + [b for b in wide.columns if b not in _BANK_COLOR]]
-                st.dataframe(wide, use_container_width=True)
+                st.dataframe(wide, width="stretch")
 
                 present_banks = sorted({
                     _bank_of(inst) for inst in
@@ -1899,7 +2017,7 @@ if __name__ == "__main__":
                 table_sel = by_label[choice]
 
                 with st.expander("Table metadata"):
-                    st.dataframe(tbls_df, use_container_width=True,
+                    st.dataframe(tbls_df, width="stretch",
                                  hide_index=True)
 
                 if table_sel is None:
@@ -1919,7 +2037,7 @@ if __name__ == "__main__":
                                      f"definition(s) hidden (loader artifact)")
                         if meta:
                             st.caption(meta)
-                        st.dataframe(full_df, use_container_width=True,
+                        st.dataframe(full_df, width="stretch",
                                      hide_index=True)
 
             if not tbls_df.empty and table_sel is not None:
@@ -1945,7 +2063,7 @@ if __name__ == "__main__":
                 if raw_df.empty:
                     st.info("No cells for this table.")
                 else:
-                    st.dataframe(raw_df, use_container_width=True,
+                    st.dataframe(raw_df, width="stretch",
                                  hide_index=True)
                     st.download_button(
                         "Download table (CSV, original shape)",
@@ -1964,14 +2082,81 @@ if __name__ == "__main__":
                         "geometry stage; it is empty on tables whose row hierarchy "
                         "came from model levels.")
                     rows_df = run(
-                        f"SELECT row_id, row_hierarchy, row_leaf_label, "
-                        f"row_leaf_label_clean, concept_key, unit, geo_key, "
-                        f"segment_key, sums_to "
+                        f"SELECT {_sel('row_dim', ['row_id', 'canonical_leaf_id', 'table_type_id', 'row_hierarchy', 'row_leaf_label', 'row_leaf_label_clean', 'concept_key', 'unit', 'geo_key', 'segment_key', 'sums_to'])} "
                         f"FROM {TBL('row_dim')} "
                         f"WHERE doc_id = '{_esc(doc_sel)}' "
                         f"AND table_id = '{_esc(table_sel)}' ORDER BY row_id")
-                    st.dataframe(rows_df, use_container_width=True,
+                    st.dataframe(rows_df, width="stretch",
                                  hide_index=True)
+
+                # ------------------------------------- per-cell identity
+                # THE ADDRESS OF EVERY SINGLE CELL, spelled out. The row
+                # identity grid above answers "what is this ROW", and the
+                # numeric pivot below answers "what are the VALUES" — neither
+                # showed the pair that actually addresses a cell in the
+                # stamped model, (canonical_leaf_id, canonical_col_id). That
+                # pair is the ONLY join key the dashboard anchors use, so a
+                # reader checking why a headline figure resolved (or did not)
+                # had to leave the app and query sqlite by hand.
+                #
+                # Not gated on the ids being present: an UNSTAMPED cell is
+                # exactly what someone auditing coverage is looking for, and
+                # blanking or filtering those rows would hide the gap. The
+                # caption states the corpus-level coverage so a column of
+                # blanks reads as a known pipeline state, not a broken view.
+                with st.expander(
+                        "Per-cell identity (canonical leaf id x canonical "
+                        "col id — the stamped address of every cell)"):
+                    cell_ids_df = run(
+                        f"SELECT f.row_id, f.col_id, "
+                        f"r.canonical_leaf_id, c.canonical_col_id, "
+                        f"r.table_type_id, "
+                        f"r.row_leaf_label, c.col_leaf_label, "
+                        f"c.col_role, c.legal_entity, "
+                        f"f.value_raw, f.value_num, f.unit, "
+                        f"f.period, f.period_span, f.period_source "
+                        f"FROM {TBL('cell_fact')} f "
+                        f"JOIN {TBL('row_dim')} r ON r.doc_id = f.doc_id "
+                        f"AND r.table_id = f.table_id AND r.row_id = f.row_id "
+                        f"LEFT JOIN {TBL('col_dim')} c ON c.doc_id = f.doc_id "
+                        f"AND c.table_id = f.table_id AND c.col_id = f.col_id "
+                        f"WHERE f.doc_id = '{_esc(doc_sel)}' "
+                        f"AND f.table_id = '{_esc(table_sel)}' "
+                        f"ORDER BY f.row_id, f.col_id")
+                    if cell_ids_df.empty:
+                        st.info("No cells for this table.")
+                    else:
+                        n_leaf = int(cell_ids_df["canonical_leaf_id"]
+                                     .notna().sum())
+                        n_col = int(cell_ids_df["canonical_col_id"]
+                                    .notna().sum())
+                        n = len(cell_ids_df)
+                        st.caption(
+                            f"{n} cell(s) — {n_leaf} carry a "
+                            f"canonical_leaf_id, {n_col} a canonical_col_id.")
+                        if n_col == 0:
+                            # STATE, not failure. canonical_col_id is declared
+                            # (schema_v7.sql:384) and populated for 0 of 1915
+                            # columns in BOTH compiled_v2.db and compiled_fs.db
+                            # — the column-axis stamp of
+                            # docs/specs/2026-08-09-column-axis-identity.md has
+                            # not been run on this corpus. Saying so here beats
+                            # an empty column the reader has to explain.
+                            st.caption(
+                                "canonical_col_id is empty for this whole "
+                                "corpus (0 of 1915 columns): the column-axis "
+                                "stamp (spec 2026-08-09) has not run yet. "
+                                "`col_role` and the period columns are the "
+                                "column-side identity available today.")
+                        st.dataframe(cell_ids_df, width="stretch",
+                                     hide_index=True)
+                        st.download_button(
+                            "Download per-cell identity (CSV)",
+                            cell_ids_df.to_csv(index=False)
+                            .encode("utf-8-sig"),
+                            file_name=f"{table_sel}_cell_identity.csv",
+                            mime="text/csv",
+                            key=f"cellid_{table_sel}")
 
                 with st.expander("Numeric pivot (columns deduplicated)"):
                     cells_df = run(
@@ -2001,7 +2186,7 @@ if __name__ == "__main__":
                         pivot = cells_df.pivot_table(
                             index="row_leaf_label", columns="col_label",
                             values="value_num", aggfunc="first")
-                        st.dataframe(pivot, use_container_width=True)
+                        st.dataframe(pivot, width="stretch")
         st.markdown("</div>", unsafe_allow_html=True)
 
         # ------------------------------------------- original PDF panel
@@ -2045,7 +2230,7 @@ if __name__ == "__main__":
                     st.image(
                         _render_pdf_page(pdf_path, p),
                         caption=f"{Path(source_file).name} — page {p}",
-                        use_container_width=True)
+                        width="stretch")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with st.expander("Raw tables"):
@@ -2056,7 +2241,7 @@ if __name__ == "__main__":
                 f"(SELECT COUNT(*) FROM {TBL('row_dim')}) AS row_dim, "
                 f"(SELECT COUNT(*) FROM {TBL('cell_fact')}) AS cell_fact"
             )
-            st.dataframe(health, use_container_width=True, hide_index=True)
+            st.dataframe(health, width="stretch", hide_index=True)
 
     # DEPLOY-MIRROR PATCH: the Table Registry and Ingest views ended here and ran
     # to EOF. Both are dropped in this mirror.

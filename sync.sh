@@ -33,6 +33,36 @@ cp "$SRC"/findociq/data/derived/dashboards/*_anchors.csv \
    "$SRC"/findociq/data/derived/dashboards/*_formulaanchors.csv \
                                              "$DST/data/dashboards/"
 
+# The source PDFs behind the Database view's "Original document" panel. DERIVED
+# FROM THE DB, never a hardcoded list: every document.source_file is resolved
+# against the upstream sources tree and only those blobs are copied, preserving
+# the subfolder (a Pillar 3 doc lives under sources/pillar3/, not
+# financial_statements/). That is 7.7 MB for the 10 documents compiled_v2.db
+# carries, against 44.5 MB for all 63 PDFs upstream — and it self-adjusts when
+# the DB gains or loses a document.
+#
+# Without these the panel reports "Original PDF unavailable" for every document:
+# the mirror has no GCS credentials, so the source_store fallback can never fire.
+rm -rf "$DST/data/sources"
+python3 - "$SRC" "$DST" <<'PYCOPY'
+import shutil, sqlite3, sys
+from pathlib import Path
+src, dst = Path(sys.argv[1]), Path(sys.argv[2])
+tree = src / "findociq" / "data" / "sources"
+con = sqlite3.connect(src / "findociq" / "db" / "compiled_v2.db")
+n = miss = 0
+for (sf,) in con.execute("SELECT DISTINCT source_file FROM document"):
+    if not sf:
+        continue
+    hits = sorted(q for q in tree.rglob(Path(sf).name) if q.is_file())
+    if not hits:
+        print(f"  sync.sh: no PDF for {sf}", file=sys.stderr); miss += 1; continue
+    out = dst / "data" / "sources" / hits[0].relative_to(tree)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(hits[0], out); n += 1
+print(f"  {n} source PDF(s) copied" + (f", {miss} unresolved" if miss else ""))
+PYCOPY
+
 # NOT copied, deliberately:
 #   requirements.txt      upstream's root file is a `-r findociq/app/...` pointer
 #                         that does not resolve here, and this copy drops
@@ -88,11 +118,21 @@ NOTE = """    # DEPLOY-MIRROR PATCH: the Table Registry and Ingest views ended h
 # AST reachability fixpoint, then frozen here so a sync is reviewable rather
 # than surprising. Each must exist exactly once, and must be unreferenced after
 # its own definition is removed — both are asserted.
+# 2026-08-14: eight names left this list because they no longer EXIST upstream.
+# FinDocIQ-v2 17480ee deleted the bank_line_map/table_catalog machinery outright
+# (table_masterlist_frame, line_item_masterlist_frame, line_item_display_order,
+# line_item_benchmark_frame, _ordered_row_addresses, _doc_kind_of,
+# BENCHMARK_PERIOD, BENCHMARK_LABEL) — the retired mapping layer this mirror had
+# been pruning by hand is now simply gone at the source, which is the better
+# place for it. Listing a symbol that does not exist makes sync abort, so they
+# are dropped rather than kept "just in case".
+#
+# The three anchor-registry helpers replaced them upstream. They are reachable
+# ONLY from the Table Registry view, which this mirror truncates, so they are
+# pruned here for the same reason their predecessors were.
 DEAD = [
-    "BENCHMARK_LABEL", "BENCHMARK_PERIOD", "STAGES", "_doc_kind_of",
-    "_ordered_row_addresses", "_plain_xlsx_export", "doc_to_csv",
-    "line_item_benchmark_frame", "line_item_display_order",
-    "line_item_masterlist_frame", "stage_states", "table_masterlist_frame",
+    "STAGES", "_plain_xlsx_export", "doc_to_csv", "stage_states",
+    "anchor_declarations", "anchor_coverage_frame", "unanchored_leaves_frame",
 ]
 
 p = pathlib.Path(sys.argv[1])
