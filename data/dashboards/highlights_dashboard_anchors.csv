@@ -72,4 +72,4 @@ NPL ratio,22,Key financial ratios (%),OCBC,FS_RATIOS_KEY,revenue_mix_efficiency_
 Common Equity Tier 1,23,Key financial ratios (%),OCBC,FS_RATIOS_KEY,capital_adequacy_ratios::common_equity_tier_1,1,Media_release_and_financial_highlights,
 - Basic,24,Per share data ($),OCBC,FS_INCOME_CONSOLIDATED,earnings_per_share::basic,1,Condensed_financial_statements,
 - Diluted,25,Per share data ($),OCBC,FS_INCOME_CONSOLIDATED,earnings_per_share::diluted,1,Condensed_financial_statements,
-Net book value (NAV per ordinary share),26,Per share data ($),OCBC,FS_BALANCE_CONSOLIDATED,net_asset_value_per_ordinary_share,1,Condensed_financial_statements,period_end_date
+Net book value (NAV per ordinary share),26,Per share data ($),OCBC,FS_RATIOS_KEY,net_asset_value_per_share,1,Media_release_and_financial_highlights,
