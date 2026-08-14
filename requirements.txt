@@ -14,5 +14,7 @@ streamlit==1.60.0
 # installed pandas 3, whose `str` dtype uses pd.NA for missing values (truthy,
 # and it stringifies), and 162 of 342 table titles rendered as "nan".
 pandas==3.0.5
-altair>=5.0.0
-pypdfium2>=5.8.0   # lazy: original-PDF page render in the Database view
+# Everything this mirror ships is now pinned exactly — it is the whole render
+# path and nothing else, so there is no reason for any of it to float.
+altair==6.2.2
+pypdfium2==5.13.0   # lazy: original-PDF page render in the Database view
