@@ -559,6 +559,29 @@ def available_dashboards(dashboards_dir=None) -> list:
              else s.replace("_", " ").capitalize()) for s in stems]
 
 
+def orphan_formula_files(dashboards_dir=None) -> list:
+    """`*_formulaanchors.csv` whose stem matches no `*_anchors.csv` — i.e. files
+    the loader will silently ignore.
+
+    THE FAILURE THIS CATCHES, which ran in production: the headline pair was
+    named `highlights_dashboard_anchors.csv` + `highlights_formulaanchors.csv`.
+    Different stems. `load_dashboard_anchors` builds its pattern as
+    `<stem>_formulaanchors.csv`, so once a set was explicitly SELECTED — which
+    happens the moment a second pair exists and the picker appears — it looked
+    for `highlights_dashboard_formulaanchors.csv`, found nothing, and dropped
+    every composed line without a word. DBS lost `Net interest income` and
+    `Other non-interest income` outright; both are formula rollups.
+
+    It was invisible because the no-argument path still globbed `*` and loaded
+    the file, so tests and any single-pair install behaved perfectly.
+
+    Returns the offending filenames so the view can SAY so. Pure — no `st`."""
+    d = Path(dashboards_dir or DASHBOARDS_DIR)
+    stems = {s for s, _ in available_dashboards(d)}
+    return sorted(p.name for p in d.glob("*_formulaanchors.csv")
+                  if p.name[: -len("_formulaanchors.csv")] not in stems)
+
+
 _REGISTRY_COLS = ["dashboard", "bank", "section", "concept", "table_type_id",
                   "canonical_leaf_id", "times_captured", "docs_captured",
                   "latest_period"]
@@ -653,10 +676,56 @@ def load_dashboard_anchors(bank: str, dashboards_dir=None, dashboard: str | None
                         # interpret for itself.
                         resolve_filter_by(r.get("filter_by"),
                                           (r["table_type_id"] or "").strip())))
+    # row_order is CARRIED on the item, not just used to sort here. The view
+    # unions these lists across banks, and without the declared order on each
+    # item that union can only append — which puts a line only one bank
+    # declares at the BOTTOM of the grid instead of in its section. See
+    # `merge_dashboard_items`.
     items = [{"label": lb, "concept": lb, "unit_hint": None,
-              "section": sections.get(lb)}
+              "section": sections.get(lb), "row_order": order[lb]}
              for lb in sorted(order, key=lambda x: order[x])]
     return items, members
+
+
+def merge_dashboard_items(per_bank_items) -> list:
+    """Union the banks' item lists into ONE row list, in declared order.
+
+    The grid shows the same row list for every bank, so the union has to be
+    ordered by what the CSV DECLARED — `row_order` — not by which bank happened
+    to be read first.
+
+    THE BUG THIS REPLACES: the view appended each bank's unseen labels to the
+    end of the list. Banks are read alphabetically, so DBS set the order and any
+    line only OCBC or UOB declared landed after every one of DBS's rows —
+    including after the Per-share block, three sections below where it belongs.
+    Because `highlights_grid_frame` emits each section header at most once, such
+    a row then printed with no header at all, under whatever section preceded
+    it. Measured while the formula file was mis-named and DBS's list was short:
+    'Net interest income' and 'Other non-interest income' both rendered at the
+    bottom of the grid instead of rows 1 and 3.
+
+    Ties (the same label declared by two banks) keep the LOWEST row_order, and
+    a label's first-seen `section` wins — sections are a property of the row
+    list, not of a bank. Stable within equal row_order, so a genuine collision
+    degrades to first-declared rather than reshuffling between runs.
+
+    Pure — no `st`, no DB."""
+    merged: dict = {}
+    for seq, items in enumerate(per_bank_items):
+        for pos, it in enumerate(items):
+            lb = it["label"]
+            key = (it.get("row_order", 0), seq, pos)
+            prev = merged.get(lb)
+            if prev is None:
+                merged[lb] = (key, dict(it))
+            elif key[0] < prev[0][0]:
+                # keep the earlier declared position, but not a later bank's
+                # section if the first one already supplied it
+                keep = dict(it)
+                if prev[1].get("section") and not keep.get("section"):
+                    keep["section"] = prev[1]["section"]
+                merged[lb] = (key, keep)
+    return [v[1] for v in sorted(merged.values(), key=lambda kv: kv[0])]
 
 
 _ANCHOR_FRAME_COLS = ["bank", "institution", "label", "concept", "unit_hint",
@@ -1690,6 +1759,16 @@ if __name__ == "__main__":
             # there is more than one set, so a single-pair install looks exactly
             # as it did before.
             _dash_sets = available_dashboards()
+            # A formula file whose stem matches no anchors file is loaded by
+            # NOBODY once a set is selected. Say so on the page — this exact
+            # mismatch silently dropped every DBS rollup line.
+            _orphans = orphan_formula_files()
+            if _orphans:
+                st.warning(
+                    f"Ignored (no matching `<stem>_anchors.csv`): "
+                    f"{', '.join(_orphans)} — every composed line declared in "
+                    f"there is missing from the grid below. Rename it to match "
+                    f"its dashboard's stem.")
             if len(_dash_sets) > 1:
                 _by_name = {name: stem for stem, name in _dash_sets}
                 _picked = st.radio("Dashboard", list(_by_name),
@@ -1698,16 +1777,20 @@ if __name__ == "__main__":
             else:
                 _dash_stem = _dash_sets[0][0] if _dash_sets else None
 
-            items, probe = [], []
+            probe = []
             per_bank = []
+            _item_lists = []
             for _b in banks_anchored:
                 _it, _mb = load_dashboard_anchors(_b, dashboard=_dash_stem)
-                seen = {i["label"] for i in items}
-                items += [i for i in _it if i["label"] not in seen]
+                _item_lists.append(_it)
                 _rows = [r for r in anchor_rows
                          if _bank_of(r["institution"] or "") == _b]
                 per_bank.append((_b, _it, _mb, _rows))
                 probe.append(anchor_highlights_frame(_rows, _it, _mb))
+            # MERGED BY DECLARED row_order, not appended in bank order — see
+            # merge_dashboard_items. Appending let a line only one bank declares
+            # land below every other bank's rows, in the wrong section.
+            items = merge_dashboard_items(_item_lists)
             probe_df = (pd.concat(probe, ignore_index=True) if probe
                         else pd.DataFrame(columns=_ANCHOR_FRAME_COLS))
             fiscal_axis = fiscal_period_axis(probe_df)
