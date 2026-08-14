@@ -1,9 +1,9 @@
 """findociq_app.py — FinDocIQ website-style app, v0.
 
 Self-contained (does NOT import dashboard.py — importing it would run its own
-page/tabs as a side effect). The ~30-line sqlite/bq backend switch below is
-copied from dashboard.py lines 30-84, not shared, so this app and the
-deployed dashboard stay independent.
+page/tabs as a side effect). The sqlite backend below is copied from
+dashboard.py, not shared, so this app and the retired dashboard stay
+independent.
 
 Scope: the app shell (sidebar nav, cobalt theme) plus four built views —
 Ingest (pick a source document, launch the pipeline, watch live per-stage
@@ -17,8 +17,8 @@ Run locally:
     streamlit run findociq/app/findociq_app.py --server.headless true \
         --server.port 8599
 
-Data source is chosen by env var FINDOCIQ_DB_SOURCE ("sqlite" default | "bq"),
-same convention as dashboard.py.
+Reads findociq/db/compiled_v2.db. There is no remote backend: GCP was retired
+in August 2026 and the BigQuery branch was removed with it.
 """
 from __future__ import annotations
 
@@ -52,14 +52,11 @@ DASHBOARDS_DIR = FINDOCIQ_DIR / "data" / "dashboards"   # DEPLOY-MIRROR PATCH: w
 # 'findociq/data/sources' inside the function silently resolves to nothing
 # there — the panel would report every PDF unavailable with the files present.
 SOURCES_DIR = FINDOCIQ_DIR / "data" / "sources"
-SOURCE = os.environ.get("FINDOCIQ_DB_SOURCE", "sqlite").lower()
-PROJECT = os.environ.get("FINDOCIQ_BQ_PROJECT", "igc2026-team08-6311")
 
 # Reference period for the Table Registry tab's per-table line-item view --
 # "what does this table actually look like right now", not an accumulation
 # across every period ever ingested. document.doc_period for 4Q25 across all
 # 3 banks (confirmed: DBS/UOB/OCBC-both-doc_kinds all use this exact string).
-DATASET = os.environ.get("FINDOCIQ_BQ_DATASET", "findociq")
 
 
 # Fixed categorical color per institution for the Dashboard compare chart
@@ -1485,8 +1482,7 @@ def resolve_source_pdf(source_file, repo, sources_dir=None) -> str | None:
     `sources_dir` defaults to the upstream layout; the deploy mirror flattens
     the tree, so it is passed in (SOURCES_DIR) rather than rebuilt here.
 
-    Pure/testable without Streamlit -- the GCS fallback stays in the caller,
-    since it needs credentials this function must not require."""
+    Pure/testable without Streamlit."""
     if not source_file:
         return None
     repo = Path(repo)
@@ -1512,39 +1508,32 @@ def resolve_source_pdf(source_file, repo, sources_dir=None) -> str | None:
 if __name__ == "__main__":
     st.set_page_config(page_title="FinDocIQ", layout="wide")
 
-    # --- backend: sqlite or bigquery, behind a uniform run(sql)/TBL(name) --
-    # (copied from dashboard.py lines 30-84, not imported — see module docstring)
-    if SOURCE == "bq":
-        from google.cloud import bigquery
+    # --- backend: sqlite, behind a uniform run(sql)/TBL(name) --------------
+    # THE BIGQUERY BRANCH IS GONE (2026-08-14). GCP is retired: there is no
+    # project, dataset or credential for it to reach, so it was dead code that
+    # still had to be reasoned about at every query site — `_cols_of` and `_sel`
+    # each carried a bq guard that could never fire, and a stale docstring told
+    # readers the source was switchable.
+    #
+    # `TBL()` stays as an identity function rather than being inlined into all
+    # 45 call sites: it costs nothing, it keeps the diff honest, and if a remote
+    # backend ever returns it is the one seam that would need to change.
+    import sqlite3
 
-        @st.cache_resource
-        def _backend():
-            return bigquery.Client(project=PROJECT)
+    @st.cache_resource
+    def _backend():
+        if not DB.exists():
+            st.error(f"DB not found: {DB}")
+            st.stop()
+        return sqlite3.connect(str(DB), check_same_thread=False)
 
-        def TBL(name: str) -> str:
-            return f"`{PROJECT}.{DATASET}.{name}`"
+    def TBL(name: str) -> str:
+        return name
 
-        def _exec(sql: str) -> pd.DataFrame:
-            return _backend().query(sql).to_dataframe()
+    def _exec(sql: str) -> pd.DataFrame:
+        return pd.read_sql_query(sql, _backend())
 
-        SRC_LABEL = f"BigQuery · {PROJECT}.{DATASET}"
-    else:
-        import sqlite3
-
-        @st.cache_resource
-        def _backend():
-            if not DB.exists():
-                st.error(f"DB not found: {DB}")
-                st.stop()
-            return sqlite3.connect(str(DB), check_same_thread=False)
-
-        def TBL(name: str) -> str:
-            return name
-
-        def _exec(sql: str) -> pd.DataFrame:
-            return pd.read_sql_query(sql, _backend())
-
-        SRC_LABEL = f"SQLite · {DB.name}"
+    SRC_LABEL = f"SQLite · {DB.name}"
 
     @st.cache_data(ttl=600, show_spinner=False)
     def run(sql: str) -> pd.DataFrame:
@@ -1565,20 +1554,12 @@ if __name__ == "__main__":
         """The columns this serving DB actually has for `table`.
 
         Cheap (one PRAGMA, cached with the same TTL as `run`) and the input to
-        every `select_clause` call. On BigQuery it returns the empty set, which
-        would blank every column, so the callers below only consult it on the
-        sqlite path — the bq serving dataset is generated from the full schema
-        and does not drift the way the shipped sqlite snapshots do."""
-        if SOURCE == "bq":
-            return set()
+        every `select_clause` call."""
         return {r[1] for r in
                 _backend().execute(f"PRAGMA table_info({table})")}
 
     def _sel(table: str, wanted, prefix: str = "") -> str:
-        """`select_clause` against the live schema. On bq, pass everything
-        through unchanged (see `_cols_of`)."""
-        if SOURCE == "bq":
-            return ", ".join(f"{prefix}{c}" for c in wanted)
+        """`select_clause` against the live schema."""
         return select_clause(wanted, _cols_of(table), prefix)
 
     def _raw_frame(doc_id: str, table_id: str):
@@ -1606,16 +1587,16 @@ if __name__ == "__main__":
     # ----------------------------------------------- original-PDF rendering
     @st.cache_data(show_spinner=False)
     def _pdf_local_path(source_file: str) -> str | None:
-        """Resolve document.source_file to a local PDF path — the repo copy if
-        one exists under either key convention (see `resolve_source_pdf`), else
-        materialize the canonical key from the GCS source bucket. None when
-        neither is available (e.g. pre-migration docs whose PDF never reached
-        the bucket).
+        """Resolve document.source_file to a local PDF path, or None.
 
-        The local pass comes FIRST and now covers both conventions, which is
-        what makes this work on a credential-less deploy: the public Streamlit
-        app has no GCS access at all, so anything that falls through to
-        `source_store.materialize` there is simply unavailable."""
+        The PDFs are COMMITTED under findociq/data/sources/, which is what lets
+        the Original-document panel work on the public deploy with no cloud
+        storage behind it. `resolve_source_pdf` handles both of the key
+        conventions the corpus uses; see its docstring.
+
+        The retired `source_store` (GCS) fallback is still attempted last so
+        nothing regresses for anyone holding old credentials, but it is not
+        part of the working path and will simply return None here."""
         local = resolve_source_pdf(source_file, REPO, SOURCES_DIR)
         if local is not None:
             return local
@@ -2317,7 +2298,7 @@ if __name__ == "__main__":
         # The source document behind the current selection, so the
         # extraction can be eyeballed against the original. Defaults to
         # the selected table's page_range; the page picker roams the
-        # whole PDF. Materializes from the GCS source bucket on demand.
+        # whole PDF. Served from the committed PDFs under data/sources/.
         if not docs_df.empty:
             st.markdown(
                 '<div class="card"><div class="card-title">Original document</div>',
@@ -2331,9 +2312,8 @@ if __name__ == "__main__":
             pdf_path = _pdf_local_path(source_file) if source_file else None
             if pdf_path is None:
                 st.info(
-                    "Original PDF unavailable — not in the local cache and "
-                    "no blob in the GCS source bucket (pre-migration "
-                    "document).")
+                    "Original PDF unavailable — no file of that name under "
+                    "findociq/data/sources/.")
             else:
                 n_pages = _pdf_n_pages(pdf_path)
                 table_pages = pages_from_range(table_page_range, n_pages)
