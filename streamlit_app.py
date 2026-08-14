@@ -1180,10 +1180,10 @@ def raw_table_frame(row_records, col_records, cell_records,
     since a column with zero cells cannot exist in the PDF render. Pass
     False to see the table exactly as the DB defines it.
     """
-    def _missing(v) -> bool:
-        # SQL NULL arrives as None via sqlite3 but as float('nan') via a
-        # pandas query path — both mean "no value", never the string 'nan'.
-        return v is None or (isinstance(v, float) and pd.isna(v))
+    # Was a local `_missing` testing None + float NaN only. Hoisted to the
+    # module-level `is_missing`, which also covers pandas >= 3's `pd.NA` — the
+    # shape that leaked the literal text "nan" into 162 table titles.
+    _missing = is_missing
 
     cols = sorted(col_records, key=lambda c: c["col_id"])
     if drop_empty_cols and cell_records:
@@ -1240,6 +1240,43 @@ def hierarchy_source_label(value) -> str:
     return "model levels"
 
 
+def is_missing(v) -> bool:
+    """True for every shape a SQL NULL takes on the way to the display layer.
+
+    THREE SHAPES, NOT ONE. Raw `sqlite3` yields `None`; a pandas query path
+    yields `float('nan')`; and pandas >= 3 reads a text column as the `str`
+    dtype whose missing value is `pd.NA`. `v is None` catches one of the three,
+    and the other two are TRUTHY and stringify to 'nan'/'<NA>' — which is
+    exactly how 162 of 342 table titles came to render as the literal text
+    "nan" (7 of 10 documents; every title in a document whose clean-title
+    column is entirely NULL).
+
+    `requirements.txt` pins only `pandas>=2.0.0`, so the deploy picked up
+    pandas 3 and the dtype changed underneath the app with no code change on
+    our side. Centralising the test means the next dtype shift is one edit.
+
+    Pure/testable without Streamlit."""
+    if v is None:
+        return True
+    try:
+        return bool(pd.isna(v))
+    except (TypeError, ValueError):
+        # pd.isna is elementwise on arrays/lists — those are never "missing".
+        return False
+
+
+def _meta_line(*parts) -> str:
+    """' · '-joined caption from parts, dropping the missing and the blank.
+
+    The truthiness guard this replaces (`str(x) for x in (...) if x`) let NaN
+    straight through — NaN IS TRUTHY — so a table with no `unit` (105 of 342 in
+    compiled_v2.db) captioned itself 'nan · p.12 · row hierarchy: …'.
+
+    Pure/testable without Streamlit."""
+    return " · ".join(str(p) for p in parts
+                      if not is_missing(p) and str(p).strip())
+
+
 def resolve_title(table_title, table_title_clean):
     """Pick the raw string a table's title should be built from: prefer
     table_title_clean (the footnote-superscript-stripped form) when it is
@@ -1249,9 +1286,9 @@ def resolve_title(table_title, table_title_clean):
     empty/whitespace-only clean value the same as NULL (geometry did not
     match). Never mutates either stored value -- display-layer only.
     Pure/testable without a Streamlit runtime."""
-    if table_title_clean is not None and str(table_title_clean).strip():
+    if not is_missing(table_title_clean) and str(table_title_clean).strip():
         return table_title_clean
-    return table_title
+    return None if is_missing(table_title) else table_title
 
 
 def display_name(s) -> str:
@@ -1260,8 +1297,12 @@ def display_name(s) -> str:
     strings (>= 2 alphabetic chars, all uppercase) rewritten to sentence
     case ('NET FEE AND COMMISSION INCOME' -> 'Net fee and commission
     income'). Mixed-case strings are left as-is. None/empty -> "".
+    A missing value in ANY of its shapes (None / NaN / pd.NA) is "", never the
+    text 'nan' — see `is_missing`. This is the last stop before the screen, so
+    it guards even though its callers now do too.
+
     Pure/testable without a Streamlit runtime."""
-    if s is None:
+    if is_missing(s):
         return ""
     s = str(s).replace("_", " ")
     s = " ".join(s.split())
@@ -1291,9 +1332,13 @@ def table_view_labels(table_records):
     options, by_label, seen = [full], {full: None}, {}
     for t in table_records:
         title_src = resolve_title(t.get("table_title"), t.get("table_title_clean"))
+        # `or` is safe only because resolve_title returns None (not NaN) when
+        # both titles are missing — NaN would win the `or` and print as 'nan'.
         base = display_name(title_src or t["table_id"])
         pr = t.get("page_range")
-        label = f"{base} (p.{pr})" if pr else base
+        # `if pr` alone would keep a NaN page_range and render '(p.nan)'.
+        label = (f"{base} (p.{pr})"
+                 if not is_missing(pr) and str(pr).strip() else base)
         n = seen.get(label, 0)
         seen[label] = n + 1
         if n:
@@ -2026,12 +2071,10 @@ if __name__ == "__main__":
                         title_src = resolve_title(tr.table_title, tr.table_title_clean)
                         st.markdown(f"**{display_name(title_src or tr.table_id)}**")
                         full_df, n_hidden = _raw_frame(doc_sel, tr.table_id)
-                        meta = " · ".join(
-                            str(x) for x in (
-                                tr.unit, f"p.{tr.page_range}",
-                                f"row hierarchy: "
-                                f"{hierarchy_source_label(tr.hierarchy_source)}")
-                            if x)
+                        meta = _meta_line(
+                            tr.unit, f"p.{tr.page_range}",
+                            f"row hierarchy: "
+                            f"{hierarchy_source_label(tr.hierarchy_source)}")
                         if n_hidden:
                             meta += (f" · {n_hidden} unused column "
                                      f"definition(s) hidden (loader artifact)")
@@ -2049,12 +2092,10 @@ if __name__ == "__main__":
                 st.markdown(
                     f"**{display_name(title_src or table_sel)}**")
                 raw_df, n_hidden = _raw_frame(doc_sel, table_sel)
-                meta = " · ".join(
-                    str(x) for x in (
-                        sel_row["unit"], f"p.{sel_row['page_range']}",
-                        f"row hierarchy: "
-                        f"{hierarchy_source_label(sel_row.get('hierarchy_source'))}")
-                    if x)
+                meta = _meta_line(
+                    sel_row["unit"], f"p.{sel_row['page_range']}",
+                    f"row hierarchy: "
+                    f"{hierarchy_source_label(sel_row.get('hierarchy_source'))}")
                 if n_hidden:
                     meta += (f" · {n_hidden} unused column "
                              f"definition(s) hidden (loader artifact)")
